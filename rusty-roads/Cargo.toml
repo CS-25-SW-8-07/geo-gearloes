@@ -1,0 +1,18 @@
+[package]
+name = "rusty-roads"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+geo-types = "0.7.15"
+
+[lints.clippy]
+# all = { level = "deny", priority = 1 }
+complexity = "deny"
+correctness = "deny"
+perf = "deny"
+unwrap_used="deny"
+suspicious = "warn"
+todo = "warn"
