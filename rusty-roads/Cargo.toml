@@ -8,11 +8,3 @@ edition = "2021"
 [dependencies]
 geo-types = "0.7.15"
 
-[lints.clippy]
-# all = { level = "deny", priority = 1 }
-complexity = "deny"
-correctness = "deny"
-perf = "deny"
-unwrap_used="deny"
-suspicious = "warn"
-todo = "warn"
