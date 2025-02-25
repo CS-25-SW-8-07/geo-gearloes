@@ -201,3 +201,5 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/rust,windows,macos,linux,visualstudiocode,jetbrains+all
 atlas/src/lib.rs
 .env
+
+.buildconfig
