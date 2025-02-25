@@ -177,6 +177,7 @@ dependencies = [
  "async-std",
  "dotenvy",
  "dotenvy_macro",
+ "geo-types",
  "rusty-roads",
  "sqlx",
 ]
