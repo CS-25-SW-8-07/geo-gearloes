@@ -7,10 +7,6 @@ pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, s
         .connect_lazy(conn)
 }
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -38,11 +34,5 @@ mod tests {
         )
         .await;
         assert!(matches!(pool, Ok(x) if x.options().get_max_connections() >= 1))
-    }
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
     }
 }
