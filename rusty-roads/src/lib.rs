@@ -71,13 +71,13 @@ pub struct FeatureClass {
 }
 
 pub trait Insertable<T> {
-    fn insert(&mut self, data: T);
+    fn insert(&mut self, data: T) -> usize;
 }
 
 pub trait Deleteable<T> {
-    fn delete(&mut self, key: T);
+    fn delete(&mut self, key: T) -> usize;
 }
 
 pub trait Queryable<T> {
-    fn find_index(&self, key: T);
+    fn find_index(&self, key: T) -> usize;
 }
