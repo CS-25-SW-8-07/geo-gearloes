@@ -34,6 +34,66 @@ pub struct Road<T: CoordNum> {
     pub tunnel: Vec<bool>,
 }
 
+impl<T: CoordNum> Insertable<RoadRow<T>> for Road<T> {
+    type Key = RoadKey;
+
+    fn insert(&mut self, data: RoadRow<T>) -> Self::Key {
+        // Does not insert duplicates
+        if let Some((id, _)) = self.id.iter().zip(self.osm_id.iter()).find(|(&_, &o)| data.osm_id == o) {
+            return RoadKey(*id);
+        }
+
+        // Finds the next id for the table
+        let next_id = if let Some(id) = self.id.last() {
+            id + 1
+        } else {
+            0
+        };
+
+
+
+        self.id.push(next_id);
+        self.geom.push(data.geom);
+        self.osm_id.push(data.osm_id);
+        self.code.push(data.code);
+        self.direction.push(data.direction);
+        self.maxspeed.push(data.maxspeed);
+        self.layer.push(data.layer);
+        self.bridge.push(data.bridge);
+        self.tunnel.push(data.tunnel);
+
+        RoadKey(next_id)
+    }
+}
+
+impl<T: CoordNum> Queryable<RoadKey> for Road<T> {
+    fn find_index(&self, key: RoadKey) -> Option<usize> {
+        self.id.iter().position(|&x| x == key.0)
+    }
+}
+
+impl<T: CoordNum> Deleteable<RoadKey> for Road<T> {
+    type Output = RoadRow<T>;
+    fn delete(&mut self, key: RoadKey) -> Option<Self::Output> {
+        if let Some(index) = self.id.iter().position(|&x| x == key.0) {
+            Some(Self::Output {
+                id: self.id.remove(index),
+                geom: self.geom.remove(index),
+                osm_id: self.osm_id.remove(index),
+                code: self.code.remove(index),
+                direction: self.direction.remove(index),
+                maxspeed: self.maxspeed.remove(index),
+                layer: self.layer.remove(index),
+                bridge: self.bridge.remove(index),
+                tunnel: self.tunnel.remove(index),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+
 pub struct NameKey(pub Id);
 
 pub struct NameRow {
@@ -61,7 +121,7 @@ pub struct Ref {
 pub struct FeatureClassKey(pub u16);
 
 pub struct FeatureClassRow {
-    pub code: u16,
+    pub code: u16, // Primary key
     pub fclass: Vec<String>,
 }
 
@@ -70,14 +130,18 @@ pub struct FeatureClass {
     pub fclass: Vec<String>,
 }
 
+
+
 pub trait Insertable<T> {
-    fn insert(&mut self, data: T) -> usize;
+    type Key;
+    fn insert(&mut self, data: T) -> Self::Key;
 }
 
 pub trait Deleteable<T> {
-    fn delete(&mut self, key: T) -> usize;
+    type Output;
+    fn delete(&mut self, key: T) -> Option<Self::Output>;
 }
 
 pub trait Queryable<T> {
-    fn find_index(&self, key: T) -> usize;
+    fn find_index(&self, key: T) -> Option<usize>;
 }
