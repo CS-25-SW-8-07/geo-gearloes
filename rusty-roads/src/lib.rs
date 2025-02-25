@@ -6,12 +6,12 @@ pub enum Direction {
     Bidirectional,
 }
 
-type Id = u64;
+type Id = usize;
 
 pub struct Road<T: CoordNum> {
     pub geom: LineString<T>,
     pub id: Id,
-    pub osm_id: Id,
+    pub osm_id: u64,
     pub code: u16,
     pub direction: Direction,
     pub maxspeed: u16,
