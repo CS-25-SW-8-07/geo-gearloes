@@ -35,7 +35,7 @@ pub struct Ref {
     pub reff: String,
 }
 
-pub struct FeatureClas {
+pub struct FeatureClass {
     pub code: u16,
     pub fclass: String,
 }
