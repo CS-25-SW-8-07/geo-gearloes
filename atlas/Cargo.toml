@@ -7,9 +7,11 @@ edition = "2021"
 
 [dependencies]
 async-std = {version ="1.13.0", features = ["attributes"]}
+geo-traits = "0.2.0"
 geo-types = "0.7.15"
 rusty-roads = {path = "../rusty-roads"}
 sqlx = { version = "0.8.3", features = [ "runtime-async-std", "postgres", "macros" ] ,default-features = false }
+wkb = "0.8.0"
 
 
 [lints]
