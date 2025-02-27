@@ -64,8 +64,10 @@ join box on st_intersects(geom,bbox)").bind(minx).bind(miny).bind(maxx).bind(max
 
 fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
     let a = read_wkb(bytea).ok()?.try_to_geometry()?;
+    dbg!(&a);
     match a {
         Geometry::LineString(geom) => Some(geom),
+        Geometry::MultiLineString(geoms) => Some(geoms.0[0].clone()), //FIXME
         _ => None,
     }
 }
