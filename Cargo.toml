@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["rusty-roads"]
+members = [ "location_obfuscation","rusty-roads"]
 
 [workspace.lints.clippy]
 # all = { level = "deny", priority = 1 }
