@@ -12,14 +12,6 @@ use sqlx::{
 use wkb::reader::read_wkb;
 
 type Bbox<T> = ((T, T), (T, T));
-
-pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, sqlx::Error> {
-    //TODO: denne funktion kunne evt. også stå for at sætte prepared statements op
-    PgPoolOptions::new()
-        .max_connections(max_conn.unwrap_or(1))
-        .connect_lazy(conn)
-}
-
 type DbRoad = (
     i32,
     String,
@@ -34,6 +26,14 @@ type DbRoad = (
     String,
     Vec<u8>,
 );
+
+pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, sqlx::Error> {
+    //TODO: denne funktion kunne evt. også stå for at sætte prepared statements op
+    PgPoolOptions::new()
+        .max_connections(max_conn.unwrap_or(1))
+        .connect_lazy(conn)
+}
+
 pub async fn box_query_as(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
@@ -54,16 +54,16 @@ fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
     dbg!(&a);
     match a {
         Geometry::LineString(geom) => Some(geom),
-        Geometry::MultiLineString(geoms) => Some(geoms.0[0].clone()), //FIXME
+        Geometry::MultiLineString(geoms) => Some(geoms.0[0].clone()), //TODO: in the danish shapefile, EVERY road is a multilinestring containing a single element
         _ => None,
     }
 }
 
 fn to_road(row: DbRoad) -> Option<Road<f64>> {
-    //let linestring = LineString::<f64>::try_from( read_wkb(&row.11).ok()?);
+    let ls = wkb_to_linestring(&row.11)?;
     Some(Road {
         id: row.0 as usize,
-        geom: wkb_to_linestring(&row.11)?,
+        geom: ls,
         osm_id: row.1.parse::<u64>().ok()?,
         code: row.2 as u16,                  //FIXME
         direction: Direction::Bidirectional, //FIXME
@@ -76,12 +76,12 @@ fn to_road(row: DbRoad) -> Option<Road<f64>> {
 
 #[cfg(test)]
 mod tests {
-
-    use dotenvy::dotenv;
-
     use super::*;
+    use dotenvy::dotenv;
     use std::env;
     use std::sync::LazyLock;
+
+    // these variables are such that environment variables are only loaded once when running test suite
     static USERNAME: LazyLock<String> = LazyLock::new(|| {
         env::var("USERNAME").expect("`USERNAME` environment variable should be set")
     });
@@ -120,6 +120,6 @@ mod tests {
         )
         .await
         .expect("error in box query");
-        assert_eq!(res.len(),79)
+        assert_eq!(res.len(), 79)
     }
 }
