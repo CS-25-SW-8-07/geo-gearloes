@@ -20,19 +20,6 @@ pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, s
         .connect_lazy(conn)
 }
 
-#[deprecated="box_query_as is better"]
-pub async fn box_query(
-    mut conn: PgConnection,
-    bbox: Bbox<f64>,
-) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
-    let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let res: Vec<sqlx::postgres::PgRow> = sqlx::query("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
-select * from public.gis_osm_roads_free_1
-join box on st_intersects(geom,bbox)").bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut conn).await?; //TODO: query should be LIMIT'ed, maybe it should be a parameter
-
-    todo!("Not yet implemented")
-}
-
 type DbRoad = (
     i32,
     String,
