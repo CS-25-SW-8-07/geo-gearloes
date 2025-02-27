@@ -44,7 +44,7 @@ select gid, osm_id, code, fclass, name, ref, oneway, maxspeed, layer, bridge, tu
 join box on st_intersects(geom,bbox)").bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?; //TODO: query should be LIMIT'ed, maybe it should be a parameter
     let res = res
         .into_iter()
-        .filter_map(|s| to_road(s))
+        .filter_map(to_road)
         .collect::<Vec<_>>(); //TODO: should maybe report on any error in linestring construction
     Ok(res)
 }
