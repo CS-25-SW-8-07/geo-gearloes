@@ -2,6 +2,11 @@ use geo_types::{CoordNum, LineString};
 
 pub mod parquet;
 pub use parquet::*;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+#[error("Value is out of bounds")]
+pub struct OutOfBounds;
 
 #[derive(Debug)]
 #[repr(u8)]
@@ -9,6 +14,18 @@ pub enum Direction {
     Forward = 0,
     Backward = 1,
     Bidirectional = 2,
+}
+
+impl TryFrom<u8> for Direction {
+    type Error = OutOfBounds;
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Forward),
+            1 => Ok(Self::Backward),
+            2 => Ok(Self::Bidirectional),
+            _ => Err(OutOfBounds),
+        }
+    }
 }
 
 type Id = u64;

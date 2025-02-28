@@ -1,6 +1,7 @@
-use std::{convert::identity, sync::Arc};
+use geo_traits::{to_geo::ToGeoLineString, GeometryTrait, GeometryType, MultiLineStringTrait};
+use std::{convert::identity, ops::Deref, sync::Arc};
 
-use crate::{Direction, Road};
+use crate::{Direction, OutOfBounds, Road};
 use arrow_array::{
     cast::AsArray,
     types::{Int16Type, UInt16Type, UInt64Type, UInt8Type},
@@ -32,6 +33,10 @@ pub enum RoadParseError {
     MissingColumn(String),
     #[error("Missing value in column {0}")]
     MissingValue(String),
+    #[error("IncorectGeom Value")]
+    IncorectGeomValue,
+    #[error("Direction out of bounds")]
+    DirectionOutOfBounds,
 }
 
 impl Road {
@@ -80,9 +85,10 @@ impl Road {
     pub fn from_parquet(bts: Bytes) -> Result<Self, RoadParseError> {
         fn parse_record<'a, Intermediate, Return, FN>(
             col: &'static str,
+            vec: &'a mut Vec<Return>,
             record: &'a RecordBatch,
             f: FN,
-        ) -> Result<Vec<Return>, RoadParseError>
+        ) -> Result<(), RoadParseError>
         where
             FN: Fn(&'a ArrayRef) -> Intermediate,
             Intermediate: IntoIterator,
@@ -91,10 +97,12 @@ impl Road {
             let colval = record
                 .column_by_name(col)
                 .ok_or(RoadParseError::MissingColumn(col.into()))?;
-            f(colval)
+            let mut val = f(colval)
                 .into_iter()
                 .collect::<Option<Vec<_>>>()
-                .ok_or(RoadParseError::MissingValue(col.into()))
+                .ok_or(RoadParseError::MissingValue(col.into()))?;
+            vec.append(&mut val);
+            Ok(())
         }
 
         let arrow_reader = ArrowReaderBuilder::try_new(bts)
@@ -102,20 +110,87 @@ impl Road {
             .build()
             .map_err(RoadParseError::ParquetError)?;
 
+        let mut id = vec![];
+        let mut osm_id = vec![];
+        let mut code = vec![];
+        let mut maxspeed = vec![];
+        let mut direction = vec![];
+        let mut layer = vec![];
+        let mut bridge = vec![];
+        let mut tunnel = vec![];
+        let mut geom = vec![];
+
         for record in arrow_reader {
             let record = record.map_err(RoadParseError::ArrowError)?;
-            let id = parse_record("id", &record, ArrayRef::as_primitive::<UInt64Type>)?;
-            let osm_id = parse_record("osm_id", &record, ArrayRef::as_primitive::<UInt64Type>)?;
-            let code = parse_record("code", &record, ArrayRef::as_primitive::<UInt16Type>)?;
-            let direction =
-                parse_record("direction", &record, ArrayRef::as_primitive::<UInt8Type>)?;
-            let maxspeed = parse_record("maxspeed", &record, ArrayRef::as_primitive::<UInt16Type>)?;
-            let layer = parse_record("layer", &record, ArrayRef::as_primitive::<Int16Type>)?;
-            let bridge = parse_record("bridge", &record, ArrayRef::as_boolean)?;
-            let tunnel = parse_record("tunnel", &record, ArrayRef::as_boolean)?;
-            let geom = parse_record("geom", &record, ArrayRef::as_primitive::<UInt8Type>)?;
+            parse_record("id", &mut id, &record, ArrayRef::as_primitive::<UInt64Type>)?;
+            parse_record(
+                "osm_id",
+                &mut osm_id,
+                &record,
+                ArrayRef::as_primitive::<UInt64Type>,
+            )?;
+            parse_record(
+                "code",
+                &mut code,
+                &record,
+                ArrayRef::as_primitive::<UInt16Type>,
+            )?;
+            parse_record(
+                "direction",
+                &mut direction,
+                &record,
+                ArrayRef::as_primitive::<UInt8Type>,
+            )?;
+            parse_record(
+                "maxspeed",
+                &mut maxspeed,
+                &record,
+                ArrayRef::as_primitive::<UInt16Type>,
+            )?;
+            parse_record(
+                "layer",
+                &mut layer,
+                &record,
+                ArrayRef::as_primitive::<Int16Type>,
+            )?;
+            parse_record("bridge", &mut bridge, &record, ArrayRef::as_boolean)?;
+            parse_record("tunnel", &mut tunnel, &record, ArrayRef::as_boolean)?;
+            parse_record(
+                "geom",
+                &mut geom,
+                &record,
+                ArrayRef::as_primitive::<UInt8Type>,
+            )?;
         }
 
-        Ok(Road::default())
+        let geom_parsed = wkb::reader::read_wkb(&geom).map_err(RoadParseError::GeomEncoding)?;
+        let geom_type = geom_parsed.as_type();
+
+        let GeometryType::MultiLineString(geom) = geom_type else {
+            return Err(RoadParseError::IncorectGeomValue);
+        };
+
+        let geom = geom
+            .line_strings()
+            .map(|x| x.to_line_string())
+            .collect_vec();
+
+        let direction = direction
+            .into_iter()
+            .map(|d| Direction::try_from(d))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| RoadParseError::DirectionOutOfBounds)?;
+
+        Ok(Road {
+            id,
+            osm_id,
+            geom,
+            code,
+            direction,
+            maxspeed,
+            layer,
+            bridge,
+            tunnel,
+        })
     }
 }
