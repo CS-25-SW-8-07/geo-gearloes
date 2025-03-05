@@ -7,12 +7,12 @@ use rusty_roads::*;
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgPoolOptions, PgRow},
-    Acquire, PgConnection, Pool, Postgres,
+    query_as, Acquire, PgConnection, Pool, Postgres,
 };
 use wkb::reader::read_wkb;
 
 type Bbox<T> = ((T, T), (T, T));
-type DbRoad = (
+type _DbRoad = (
     i32,
     String,
     i16,
@@ -27,6 +27,8 @@ type DbRoad = (
     Vec<u8>,
 );
 
+type DbRoad = (i32, Vec<u8>, i64, i16, String, i16, i16, bool, bool); //TODO: osm id is actually u64, other signed/unsigned funny business
+
 pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, sqlx::Error> {
     //TODO: denne funktion kunne evt. også stå for at sætte prepared statements op
     PgPoolOptions::new()
@@ -34,18 +36,30 @@ pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, s
         .connect_lazy(conn)
 }
 
+#[deprecated="uses wrong table, use `box_query` instead"]
 pub async fn box_query_as(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
 ) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let res: Vec<DbRoad> = sqlx::query_as("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
+    let res: Vec<_DbRoad> = sqlx::query_as("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
 select gid, osm_id, code, fclass, name, ref, oneway, maxspeed, layer, bridge, tunnel, st_asbinary(geom,'NDR') from public.gis_osm_roads_free_1
 join box on st_intersects(geom,bbox)").bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?; //TODO: query should be LIMIT'ed, maybe it should be a parameter
-    let res = res
-        .into_iter()
-        .filter_map(to_road)
-        .collect::<Vec<_>>(); //TODO: should maybe report on any error in linestring construction
+    let res = res.into_iter().filter_map(to_road).collect::<Vec<_>>(); //TODO: should maybe report on any error in linestring construction
+    Ok(res)
+}
+
+pub async fn box_query(
+    mut conn: PoolConnection<Postgres>,
+    bbox: Bbox<f64>,
+    limit: Option<u32>,
+) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
+    let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
+    let res: Vec<DbRoad> = sqlx::query_as("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
+select id, st_asbinary(geom,'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
+join box on st_intersects(geom,bbox)
+limit $5;").bind(minx).bind(miny).bind(maxx).bind(maxy).bind(limit.unwrap_or(1000) as i32).fetch_all(&mut *conn).await?;
+    let res = res.into_iter().filter_map(into_road).collect::<Vec<_>>(); //TODO: should maybe report on any error in linestring construction
     Ok(res)
 }
 
@@ -59,7 +73,32 @@ fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
     }
 }
 
-fn to_road(row: DbRoad) -> Option<Road<f64>> {
+fn into_road(road: DbRoad) -> Option<Road<f64>> {
+    let ls = wkb_to_linestring(&road.1)?;
+    let direc = |c: &str| match c {
+        "B" => Some(Direction::Bidirectional),
+        "T" => Some(Direction::Backward),
+        "F" => Some(Direction::Forward),
+        _ => None,
+    };
+
+    // all data from the danish road dataset are within casting bounds
+    let res = Road {
+        id: road.0 as usize,
+        geom: ls,
+        osm_id: road.2 as u64,
+        code: road.3 as u16,
+        direction: direc(&road.4)?, //FIXME
+        maxspeed: road.5 as u16,
+        layer: road.6,
+        bridge: road.7,
+        tunnel: road.8,
+    };
+    Some(res)
+}
+
+#[deprecated]
+fn to_road(row: _DbRoad) -> Option<Road<f64>> {
     let ls = wkb_to_linestring(&row.11)?;
     Some(Road {
         id: row.0 as usize,
@@ -80,7 +119,7 @@ mod tests {
     use dotenvy::dotenv;
     use std::env;
     use std::sync::LazyLock;
-
+    const CONNCOUNT: u32 = 100;
     // these variables are such that environment variables are only loaded once when running test suite
     static USERNAME: LazyLock<String> = LazyLock::new(|| {
         env::var("USERNAME").expect("`USERNAME` environment variable should be set")
@@ -100,6 +139,10 @@ mod tests {
             &*USERNAME, &*PASSWORD, &*ADDRESS, &*DBNAME
         )
     });
+    static POOL: LazyLock<Pool<Postgres>> = LazyLock::new(|| {
+        async_std::task::block_on(async { bind(&*CONN, Some(CONNCOUNT)).await.expect("msg") })
+    });
+
     #[async_std::test]
     async fn it_connects() {
         let pool = bind(&*CONN, Some(1)).await;
@@ -107,7 +150,8 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn sorry_to_box_in() {
+    #[ignore = "function uses old table structure"]
+    async fn sorry_to_box_in_old() {
         let pool = bind(&*CONN, Some(1))
             .await
             .expect("Failed to connect to database, perhaps it is offline");
@@ -121,5 +165,20 @@ mod tests {
         .await
         .expect("error in box query");
         assert_eq!(res.len(), 79)
+    }
+
+    #[async_std::test]
+    async fn sorry_to_box_in() {
+        let bbox_cassiopeia = (
+            (9.989492935608991, 57.009828137476511),
+            (9.995526228694693, 57.013236271456691),
+        );
+        let conn = (*POOL).acquire().await.expect("msg");
+        let res = box_query(
+            conn,
+            bbox_cassiopeia,
+            Some(1000),
+        ).await;
+        assert!(matches!(res, Ok(x) if x.len()==79))
     }
 }
