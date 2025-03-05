@@ -167,16 +167,16 @@ mod tests {
     const CONNCOUNT: u32 = 100;
     // these variables are such that environment variables are only loaded once when running test suite
     static USERNAME: LazyLock<String> = LazyLock::new(|| {
-        env::var("USERNAME").expect("`USERNAME` environment variable should be set")
+        env::var("DB_USERNAME").expect("`DB_USERNAME` environment variable should be set")
     });
     static PASSWORD: LazyLock<String> = LazyLock::new(|| {
-        env::var("PASSWORD").expect("`PASSWORD` environment variable should be set")
+        env::var("DB_PASSWORD").expect("`DB_PASSWORD` environment variable should be set")
     });
     static ADDRESS: LazyLock<String> = LazyLock::new(|| {
-        env::var("ADDRESS").expect("`ADDRESS` environment variable should be set")
+        env::var("DB_ADDRESS").expect("`DB_ADDRESS` environment variable should be set")
     });
     static DBNAME: LazyLock<String> =
-        LazyLock::new(|| env::var("DBNAME").expect("`DBNAME` environment variable should be set"));
+        LazyLock::new(|| env::var("DB_NAME").expect("`DB_NAME` environment variable should be set"));
     static CONN: LazyLock<String> = LazyLock::new(|| {
         dotenv().expect("failed to read environment variables");
         format!(
