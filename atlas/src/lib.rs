@@ -1,15 +1,13 @@
-use geo_traits::{
-    to_geo::{self, ToGeoGeometry},
-    GeometryTrait,
-};
-use geo_types::{coord, Coord, CoordFloat, Geometry, LineString};
+use geo_traits::to_geo::ToGeoGeometry;
+use geo_types::{Geometry, LineString};
 use rusty_roads::*;
 use sqlx::{
     pool::PoolConnection,
-    postgres::{PgPoolOptions, PgRow},
-    query_as, Acquire, PgConnection, Pool, Postgres,
+    postgres::{self, PgPoolOptions},
+    Database, Decode, FromRow, Pool, Postgres, Row,
 };
 use wkb::reader::read_wkb;
+use derive_more::From;
 
 type Bbox<T> = ((T, T), (T, T));
 type _DbRoad = (
@@ -29,6 +27,44 @@ type _DbRoad = (
 
 type DbRoad = (i32, Vec<u8>, i64, i16, String, i16, i16, bool, bool); //TODO: osm id is actually u64, other signed/unsigned funny business
 
+// impl<'r> Decode<'r,Postgres> for Road<f64> {
+//     fn decode(value: <DB as sqlx::Database>::ValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+//         todo!()
+//     }
+// }
+#[derive(sqlx::Type,From)]
+#[sqlx(transparent, no_pg_array)]
+struct MyRoad(Road<f64>);
+
+impl FromRow<'_, postgres::PgRow> for MyRoad {
+    fn from_row(row: &'_ postgres::PgRow) -> Result<Self, sqlx::Error> {
+        let ls = wkb_to_linestring(&row.try_get::<Vec<u8>, _>("geom")?).ok_or(
+            sqlx::Error::ColumnDecode {
+                index: "geom".into(),
+                source: Box::new(sqlx::Error::ColumnNotFound("geom".into())),
+            },
+        )?;
+        let direc = |c: &str| match c {
+            "B" => Some(Direction::Bidirectional),
+            "T" => Some(Direction::Backward),
+            "F" => Some(Direction::Forward),
+            _ => None,
+        };
+        let road = Road::<f64> {
+            id: row.try_get::<i32, _>("id")? as usize,
+            geom: ls,
+            osm_id: row.try_get::<i64,_>("osm_id")? as u64,
+            code: row.try_get::<i16,_>("code")? as u16,
+            direction: direc(&row.try_get::<String,_>("oneway")?).expect("msg"),
+            maxspeed: row.try_get::<i16,_>("maxspeed")? as u16,
+            layer: row.try_get::<i16,_>("layer")?,
+            bridge: row.try_get::<bool,_>("bridge")?,
+            tunnel: row.try_get::<bool,_>("tunnel")?,
+        };
+        Ok(MyRoad(road))
+    }
+}
+
 pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, sqlx::Error> {
     //TODO: denne funktion kunne evt. også stå for at sætte prepared statements op
     PgPoolOptions::new()
@@ -36,7 +72,7 @@ pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, s
         .connect_lazy(conn)
 }
 
-#[deprecated="uses wrong table, use `box_query` instead"]
+#[deprecated = "uses wrong table, use `box_query` instead"]
 pub async fn box_query_as(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
@@ -55,12 +91,12 @@ pub async fn box_query(
     limit: Option<u32>,
 ) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let res: Vec<DbRoad> = sqlx::query_as("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
+    let res: Vec<MyRoad> = sqlx::query_as("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
 select id, st_asbinary(geom,'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
 join box on st_intersects(geom,bbox)
 limit $5;").bind(minx).bind(miny).bind(maxx).bind(maxy).bind(limit.unwrap_or(1000) as i32).fetch_all(&mut *conn).await?;
-    let res = res.into_iter().filter_map(into_road).collect::<Vec<_>>(); //TODO: should maybe report on any error in linestring construction
-    Ok(res)
+    // let res = res.into_iter().filter_map(into_road).collect::<Vec<_>>(); //TODO: should maybe report on any error in linestring construction
+    Ok(res.into_iter().map(|x|x.0).collect::<Vec<_>>())
 }
 
 fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
@@ -174,11 +210,7 @@ mod tests {
             (9.995526228694693, 57.013236271456691),
         );
         let conn = (*POOL).acquire().await.expect("msg");
-        let res = box_query(
-            conn,
-            bbox_cassiopeia,
-            Some(1000),
-        ).await;
+        let res = box_query(conn, bbox_cassiopeia, Some(1000)).await;
         assert!(matches!(res, Ok(x) if x.len()==79))
     }
 }
