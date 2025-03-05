@@ -166,6 +166,7 @@ name = "rusty-roads"
 version = "0.1.0"
 dependencies = [
  "geo-types",
+ "rstar",
 ]
 
 [[package]]

@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-geo-types = "0.7.15"
-
+geo-types = { version = "0.7.15", features = ["multithreading", "use-rstar_0_12"] }
+rstar = "0.12.2"
