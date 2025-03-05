@@ -4,12 +4,17 @@ pub mod parquet;
 pub use parquet::*;
 use thiserror::Error;
 
+#[inline]
+pub fn default<T: Default>() -> T {
+    T::default()
+}
+
 #[derive(Debug, Error)]
 #[error("Value is out of bounds")]
 pub struct OutOfBounds;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Direction {
     Forward = 0,
     Backward = 1,
@@ -33,7 +38,7 @@ type Id = u64;
 #[derive(Debug, Clone, Copy)]
 pub struct RoadKey(pub Id);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RoadRow {
     pub id: Id,
     pub geom: LineString<f64>,
@@ -46,7 +51,7 @@ pub struct RoadRow {
     pub tunnel: bool,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Road {
     pub id: Vec<Id>, // Primary key
     pub geom: Vec<LineString<f64>>,
@@ -59,10 +64,10 @@ pub struct Road {
     pub tunnel: Vec<bool>,
 }
 
-impl<T: CoordNum> Insertable<RoadRow<T>> for Road<T> {
+impl Insertable<RoadRow> for Road {
     type Key = RoadKey;
 
-    fn insert(&mut self, data: &RoadRow<T>) -> Self::Key {
+    fn insert(&mut self, data: &RoadRow) -> Self::Key {
         // Does not insert duplicates
         if let Some((id, _)) = self
             .id
@@ -93,12 +98,12 @@ impl<T: CoordNum> Insertable<RoadRow<T>> for Road<T> {
         RoadKey(next_id)
     }
 
-    fn insert_many(&mut self, data: &[RoadRow<T>]) -> Vec<Self::Key> {
+    fn insert_many(&mut self, data: &[RoadRow]) -> Vec<Self::Key> {
         data.iter().map(|x| self.insert(x)).collect()
     }
 }
 
-impl<T: CoordNum> Queryable<RoadKey> for Road<T> {
+impl Queryable<RoadKey> for Road {
     fn find_index(&self, key: RoadKey) -> Option<usize> {
         self.id.iter().position(|&x| x == key.0)
     }
@@ -108,8 +113,8 @@ impl<T: CoordNum> Queryable<RoadKey> for Road<T> {
     }
 }
 
-impl<T: CoordNum> Deleteable<RoadKey> for Road<T> {
-    type Output = RoadRow<T>;
+impl Deleteable<RoadKey> for Road {
+    type Output = RoadRow;
     fn delete(&mut self, key: RoadKey) -> Option<Self::Output> {
         if let Some(index) = self.id.iter().position(|&x| x == key.0) {
             Some(Self::Output {
@@ -130,6 +135,14 @@ impl<T: CoordNum> Deleteable<RoadKey> for Road<T> {
 
     fn delete_many(&mut self, key: &[RoadKey]) -> Vec<Option<Self::Output>> {
         key.iter().map(|x| self.delete(*x)).collect()
+    }
+}
+
+impl FromIterator<RoadRow> for Road {
+    fn from_iter<T: IntoIterator<Item = RoadRow>>(iter: T) -> Self {
+        let mut slf: Self = default();
+        slf.insert_many(&iter.into_iter().collect::<Vec<RoadRow>>());
+        slf
     }
 }
 
