@@ -5,7 +5,7 @@ use rusty_roads::*;
 use sqlx::{
     pool::PoolConnection,
     postgres::{self, PgPoolOptions},
-    Database, Decode, FromRow, Pool, Postgres, Row,
+    FromRow, Pool, Postgres, Row,
 };
 use wkb::reader::read_wkb;
 
@@ -99,10 +99,12 @@ pub async fn box_query(
     limit: Option<u32>,
 ) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let res: Vec<MyRoad> = sqlx::query_as("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
+    let limit = limit.map(|x|format!("limit {x}")).unwrap_or("".into());
+
+    let res: Vec<MyRoad> = sqlx::query_as(&format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
 select id, st_asbinary(geom,'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
 join box on st_intersects(geom,bbox)
-limit $5;").bind(minx).bind(miny).bind(maxx).bind(maxy).bind(limit.unwrap_or(1000) as i32).fetch_all(&mut *conn).await?;
+{limit};")).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?;
     // let res = res.into_iter().filter_map(into_road).collect::<Vec<_>>(); //TODO: should maybe report on any error in linestring construction
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
@@ -219,7 +221,7 @@ mod tests {
             (9.995526228694693, 57.013236271456691),
         );
         let conn = (*POOL).acquire().await.expect("msg");
-        let res = box_query(conn, bbox_cassiopeia, Some(1000)).await;
-        assert!(matches!(res, Ok(x) if x.len()==79))
+        let res = box_query(conn, bbox_cassiopeia, None).await;
+        assert!(matches!(&res, Ok(x) if x.len()==79),"x.len()=={}",res.map(|x|x.len()).unwrap_or(0))
     }
 }
