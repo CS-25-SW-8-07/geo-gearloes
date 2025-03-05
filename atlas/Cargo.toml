@@ -6,11 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = {version ="1.13.0", features = ["attributes"]}
+async-std = { version = "1.13.0", features = ["attributes"] }
+derive_more = { version = "2.0.1", features = ["from"] }
 geo-traits = "0.2.0"
 geo-types = "0.7.15"
-rusty-roads = {path = "../rusty-roads"}
-sqlx = { version = "0.8.3", features = [ "runtime-async-std", "postgres", "macros" ] ,default-features = false }
+rusty-roads = { path = "../rusty-roads" }
+sqlx = { version = "0.8.3", features = [
+    "runtime-async-std",
+    "postgres",
+    "macros",
+], default-features = false }
 wkb = "0.8.0"
 
 
