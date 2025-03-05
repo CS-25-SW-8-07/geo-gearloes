@@ -1,4 +1,4 @@
-use geo_types::{CoordNum, LineString};
+use geo_types::LineString;
 
 pub mod parquet;
 pub use parquet::*;

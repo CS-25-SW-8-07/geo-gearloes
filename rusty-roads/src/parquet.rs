@@ -1,31 +1,26 @@
-use geo_traits::{to_geo::ToGeoLineString, GeometryTrait, GeometryType, MultiLineStringTrait};
-use std::{convert::identity, ops::Deref, sync::Arc};
+use geo_traits::{to_geo::ToGeoLineString, GeometryTrait, GeometryType};
+use std::sync::Arc;
 
-use crate::{Direction, OutOfBounds, Road};
+use crate::{Direction, Road};
 use arrow_array::{
-    builder::PrimitiveBuilder,
     cast::AsArray,
     types::{
-        self, BinaryType, Int16Type, Int32Type, Int64Type, Int8Type, UInt16Type, UInt32Type,
+        Int16Type, Int32Type, Int64Type, Int8Type, UInt16Type, UInt32Type,
         UInt64Type, UInt8Type,
     },
-    ArrayRef, ArrowPrimitiveType, BinaryArray, BooleanArray, GenericBinaryArray, GenericByteArray,
-    Int16Array, Int32Array, Int64Array, PrimitiveArray, RecordBatch, UInt16Array, UInt64Array,
-    UInt8Array,
+    ArrayRef, ArrowPrimitiveType, BinaryArray, BooleanArray, PrimitiveArray, RecordBatch,
 };
 use arrow_schema::ArrowError;
-use bytes::{Buf, BufMut, Bytes};
-use geo_types::{CoordNum, LineString, MultiLineString};
+use bytes::Bytes;
+use geo_types::LineString;
 use itertools::Itertools;
 use parquet::{
     arrow::{arrow_reader::ArrowReaderBuilder, *},
-    data_type::ByteArray,
     errors::ParquetError,
     file::properties::WriterProperties,
-    record,
 };
 use thiserror::Error;
-use wkb::{error::WKBError, writer};
+use wkb::error::WKBError;
 
 pub trait ToParquet: Sized {
     type Error;
@@ -296,7 +291,7 @@ impl FromParquet for Road {
 
         let direction = direction
             .into_iter()
-            .map(|d| Direction::try_from(d))
+            .map(Direction::try_from)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| RoadParseError::DirectionOutOfBounds)?;
 
@@ -316,12 +311,12 @@ impl FromParquet for Road {
 
 #[cfg(test)]
 mod test {
-    use std::iter::repeat;
+    
 
     use geo_types::Coord;
-    use rand::{random, random_bool, random_range};
+    use rand::{random, random_range};
 
-    use crate::{default, Id, Insertable, RoadRow};
+    use crate::{Id, RoadRow};
 
     use super::*;
 
