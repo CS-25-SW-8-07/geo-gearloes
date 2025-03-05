@@ -5,8 +5,7 @@ use crate::{Direction, Road};
 use arrow_array::{
     cast::AsArray,
     types::{
-        Int16Type, Int32Type, Int64Type, Int8Type, UInt16Type, UInt32Type,
-        UInt64Type, UInt8Type,
+        Int16Type, Int32Type, Int64Type, Int8Type, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
     },
     ArrayRef, ArrowPrimitiveType, BinaryArray, BooleanArray, PrimitiveArray, RecordBatch,
 };
@@ -311,7 +310,6 @@ impl FromParquet for Road {
 
 #[cfg(test)]
 mod test {
-    
 
     use geo_types::Coord;
     use rand::{random, random_range};
@@ -353,7 +351,6 @@ mod test {
         let check = roads.clone();
         let parquet = roads.to_parquet().unwrap();
         let deque = Road::from_parquet(parquet).unwrap();
-        deque.id.iter().zip(check.id.iter()).all(eq);
         check!(check, deque, id);
         check!(check, deque, osm_id);
         check!(check, deque, geom);
