@@ -117,6 +117,7 @@ fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
     }
 }
 
+#[deprecated]
 fn into_road(road: DbRoad) -> Option<Road<f64>> {
     let ls = wkb_to_linestring(&road.1)?;
     let direc = |c: &str| match c {
