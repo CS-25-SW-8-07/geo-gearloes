@@ -34,6 +34,24 @@ pub trait FromParquet: Sized {
     fn from_parquet(bts: Bytes) -> Result<Self, Self::Error>;
 }
 
+#[derive(Debug, Error)]
+pub enum RoadParseError {
+    #[error("WBK Eroor {0}")]
+    GeomEncoding(WKBError),
+    #[error("Arrow Eroor {0}")]
+    ArrowError(ArrowError),
+    #[error("Parquet Error {0}")]
+    ParquetError(ParquetError),
+    #[error("Missing Column {0}")]
+    MissingColumn(String),
+    #[error("Missing value in column {0}")]
+    MissingValue(String),
+    #[error("IncorectGeom Value")]
+    IncorectGeomValue,
+    #[error("Direction out of bounds")]
+    DirectionOutOfBounds,
+}
+
 trait ParquetType {
     type ParquetPrimitiveType: ArrowPrimitiveType<Native = Self>;
 }
@@ -200,24 +218,6 @@ impl AppendFromColumn for Vec<LineString> {
 
         Ok(())
     }
-}
-
-#[derive(Debug, Error)]
-pub enum RoadParseError {
-    #[error("WBK Eroor {0}")]
-    GeomEncoding(WKBError),
-    #[error("Arrow Eroor {0}")]
-    ArrowError(ArrowError),
-    #[error("Parquet Error {0}")]
-    ParquetError(ParquetError),
-    #[error("Missing Column {0}")]
-    MissingColumn(String),
-    #[error("Missing value in column {0}")]
-    MissingValue(String),
-    #[error("IncorectGeom Value")]
-    IncorectGeomValue,
-    #[error("Direction out of bounds")]
-    DirectionOutOfBounds,
 }
 
 impl ToParquet for Road {
