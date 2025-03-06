@@ -31,14 +31,17 @@ struct MyRoad(Road<f64>);
 
 #[derive(sqlx::FromRow, From)]
 #[sqlx(transparent)]
+#[allow(dead_code)]
 struct MyNameRow(NameRow);
 
 #[derive(sqlx::FromRow, From)]
 #[sqlx(transparent)]
+#[allow(dead_code)]
 struct MyRefManyKey(RefManyKey);
 
 #[derive(sqlx::FromRow, From)]
 #[sqlx(transparent)]
+#[allow(dead_code)]
 struct MyFeatureClassRow(FeatureClassRow);
 
 // hopefully other tables are automatically derivable
