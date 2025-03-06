@@ -118,7 +118,8 @@ pub async fn box_query_without(
         _ => {
             let not_in = without
                 .iter()
-                .map(|id| format!("{},", id.to_string()))
+                // .fold("", |acc,x| format!("{acc},{x},"));
+                .map(|id| format!("{},", id))
                 .collect::<String>();
             let not_in = &not_in[0..not_in.len() - 1];
             format!("where id not in ({not_in})")
