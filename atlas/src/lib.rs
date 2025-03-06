@@ -60,7 +60,6 @@ impl FromRow<'_, postgres::PgRow> for MyRoad {
     }
 }
 
-
 /// Lazily creates a connection [`Pool`] with a given maximum connections (default 1).
 ///
 /// # Errors
@@ -71,7 +70,6 @@ pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, s
         .max_connections(max_conn.unwrap_or(1))
         .connect_lazy(conn)
 }
-
 
 /// Retrives [`Road`]s that intersect with a given bounding box, up to a limit, if given.
 ///
@@ -207,8 +205,10 @@ mod tests {
                 .acquire()
                 .await
                 .expect("failed to establish database connection, perhaps it is closed");
-            let res = box_query(conn, bbox, None).await.expect("failed to execute query");
-            assert_eq!(NAN_BOX,res.len())
+            let res = box_query(conn, bbox, None)
+                .await
+                .expect("failed to execute query");
+            assert_eq!(NAN_BOX, res.len())
         }
     }
 
