@@ -25,8 +25,6 @@ type _DbRoad = (
     Vec<u8>,
 );
 
-type DbRoad = (i32, Vec<u8>, i64, i16, String, i16, i16, bool, bool); //TODO: osm id is actually u64, other signed/unsigned funny business
-
 #[derive(sqlx::Type, From)]
 #[sqlx(transparent, no_pg_array)]
 struct MyRoad(Road<f64>);
