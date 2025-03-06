@@ -106,7 +106,13 @@ pub async fn box_query(
     join box on st_intersects(geom,bbox)
     {limit};");
 
-    let res: Vec<MyRoad> = sqlx::query_as(&sql).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?; // multilinestring gets converted to just linestring
+    let res: Vec<MyRoad> = sqlx::query_as(&sql)
+        .bind(minx)
+        .bind(miny)
+        .bind(maxx)
+        .bind(maxy)
+        .fetch_all(&mut *conn)
+        .await?; // multilinestring gets converted to just linestring
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
 
@@ -120,7 +126,7 @@ pub async fn box_query_without(
     let limit = limit.map(|x| format!("limit {x}")).unwrap_or("".into());
 
     let where_clause = match without.len() {
-        0 => {"".into()}
+        0 => "".into(),
         _ => {
             let not_in = without
                 .iter()
@@ -135,7 +141,13 @@ pub async fn box_query_without(
     select id, st_asbinary(st_geometryn(geom,1),'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
     join box on st_intersects(geom,bbox)  {where_clause} 
     {limit};");
-    let res: Vec<MyRoad> = sqlx::query_as(&sql).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?;
+    let res: Vec<MyRoad> = sqlx::query_as(&sql)
+        .bind(minx)
+        .bind(miny)
+        .bind(maxx)
+        .bind(maxy)
+        .fetch_all(&mut *conn)
+        .await?;
 
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
@@ -147,31 +159,6 @@ fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
         Geometry::MultiLineString(geoms) => Some(geoms.0[0].clone()),
         _ => None,
     }
-}
-
-#[deprecated]
-fn into_road(road: DbRoad) -> Option<Road<f64>> {
-    let ls = wkb_to_linestring(&road.1)?;
-    let direc = |c: &str| match c {
-        "B" => Some(Direction::Bidirectional),
-        "T" => Some(Direction::Backward),
-        "F" => Some(Direction::Forward),
-        _ => None,
-    };
-
-    // all data from the danish road dataset are within casting bounds
-    let res = Road {
-        id: road.0 as usize,
-        geom: ls,
-        osm_id: road.2 as u64,
-        code: road.3 as u16,
-        direction: direc(&road.4)?, //FIXME
-        maxspeed: road.5 as u16,
-        layer: road.6,
-        bridge: road.7,
-        tunnel: road.8,
-    };
-    Some(res)
 }
 
 #[deprecated]
@@ -221,7 +208,6 @@ mod tests {
         async_std::task::block_on(async { bind(&*CONN, Some(CONNCOUNT)).await.expect("msg") })
     });
 
-
     static BBOX_CASSIOPEIA: LazyLock<Bbox<f64>> = LazyLock::new(|| {
         (
             (9.989492935608991, 57.009828137476511),
@@ -250,23 +236,38 @@ mod tests {
         assert_eq!(res.len(), 79)
     }
 
-    #[async_std::test]
-    async fn sorry_to_box_in() {
-        let conn = (*POOL).acquire().await.expect("failed to establish database connection, perhaps it is closed");
-        let res = box_query(conn, *BBOX_CASSIOPEIA, None).await;
-        assert!(
-            matches!(&res, Ok(x) if x.len()==79),
-            "x.len()=={}",
-            res.map(|x| x.len()).unwrap_or(0)
-        )
+    mod box_query {
+        use super::*;
+
+        #[async_std::test]
+        async fn sorry_to_box_in() {
+            let conn = (*POOL)
+                .acquire()
+                .await
+                .expect("failed to establish database connection, perhaps it is closed");
+            let res = box_query(conn, *BBOX_CASSIOPEIA, None).await;
+            assert!(
+                matches!(&res, Ok(x) if x.len()==79),
+                "x.len()=={}",
+                res.map(|x| x.len()).unwrap_or(0)
+            )
+        }
     }
 
-    #[async_std::test]
-    async fn box_without() {
-        let without = [592125,592124,661737];
-        let conn = (*POOL).acquire().await.expect("failed to establish database connection, perhaps it is closed");
-        let res = box_query_without(conn, *BBOX_CASSIOPEIA, &without, None).await.expect("failed to execute query");
-        assert_eq!(79-without.len(),res.len())
-    }
+    mod box_query_without {
+        use super::*;
 
+        #[async_std::test]
+        async fn box_without() {
+            let without = [592125, 592124, 661737];
+            let conn = (*POOL)
+                .acquire()
+                .await
+                .expect("failed to establish database connection, perhaps it is closed");
+            let res = box_query_without(conn, *BBOX_CASSIOPEIA, &without, None)
+                .await
+                .expect("failed to execute query");
+            assert_eq!(79 - without.len(), res.len())
+        }
+    }
 }
