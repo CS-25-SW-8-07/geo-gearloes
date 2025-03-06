@@ -74,13 +74,24 @@ impl FromRow<'_, postgres::PgRow> for MyRoad {
     }
 }
 
+
+/// Lazily creates a connection [`Pool`] with a given maximum connections (default 1).
+///
+/// # Errors
+///
+/// This function will return an error if the connection issues (e.g. malformed connection string, or if the database is down).
 pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, sqlx::Error> {
-    //TODO: denne funktion kunne evt. også stå for at sætte prepared statements op
     PgPoolOptions::new()
         .max_connections(max_conn.unwrap_or(1))
         .connect_lazy(conn)
 }
 
+
+/// Retrives [`Road`]s that intersect with a given bounding box, up to a limit, if given.
+///
+/// # Errors
+///
+/// This function will return an error if there are connection issues with the database.
 pub async fn box_query(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
@@ -104,6 +115,11 @@ pub async fn box_query(
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
 
+/// Like [`box_query`], but allows excluding certain roads by id.
+///
+/// # Errors
+///
+/// This function will return an error if .
 pub async fn box_query_without(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
