@@ -9,6 +9,8 @@ use sqlx::{
 };
 use wkb::reader::read_wkb;
 
+pub mod join_table;
+
 type Bbox<T> = ((T, T), (T, T));
 type _DbRoad = (
     i32,
