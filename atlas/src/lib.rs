@@ -80,19 +80,6 @@ pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, s
         .connect_lazy(conn)
 }
 
-#[deprecated = "uses wrong table, use `box_query` instead"]
-pub async fn box_query_as(
-    mut conn: PoolConnection<Postgres>,
-    bbox: Bbox<f64>,
-) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
-    let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let res: Vec<_DbRoad> = sqlx::query_as("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
-select gid, osm_id, code, fclass, name, ref, oneway, maxspeed, layer, bridge, tunnel, st_asbinary(geom,'NDR') from public.gis_osm_roads_free_1
-join box on st_intersects(geom,bbox)").bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?; //TODO: query should be LIMIT'ed, maybe it should be a parameter
-    let res = res.into_iter().filter_map(to_road).collect::<Vec<_>>(); //TODO: should maybe report on any error in linestring construction
-    Ok(res)
-}
-
 pub async fn box_query(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
@@ -219,21 +206,6 @@ mod tests {
     async fn it_connects() {
         let pool = bind(&*CONN, Some(1)).await;
         assert!(matches!(pool, Ok(x) if x.options().get_max_connections() >= 1))
-    }
-
-    #[async_std::test]
-    #[ignore = "function uses old table structure"]
-    async fn sorry_to_box_in_old() {
-        let pool = bind(&*CONN, Some(1))
-            .await
-            .expect("Failed to connect to database, perhaps it is offline");
-        let res = box_query_as(
-            pool.acquire().await.expect("failed to acquire connection"),
-            *BBOX_CASSIOPEIA,
-        )
-        .await
-        .expect("error in box query");
-        assert_eq!(res.len(), 79)
     }
 
     mod box_query {
