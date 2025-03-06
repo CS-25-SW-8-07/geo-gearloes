@@ -99,7 +99,7 @@ pub async fn box_query(
     limit: Option<u32>,
 ) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let limit = limit.map(|x|format!("limit {x}")).unwrap_or("".into());
+    let limit = limit.map(|x|format!("limit {x}")).unwrap_or("".into()); //i could not get sql's LIMIT ALL to work, so this is a workaround
 
     let res: Vec<MyRoad> = sqlx::query_as(&format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
 select id, st_asbinary(geom,'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
