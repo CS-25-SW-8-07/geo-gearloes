@@ -10,20 +10,6 @@ use sqlx::{
 use wkb::reader::read_wkb;
 
 type Bbox<T> = ((T, T), (T, T));
-type _DbRoad = (
-    i32,
-    String,
-    i16,
-    String,
-    Option<String>,
-    Option<String>,
-    String,
-    i16,
-    f64,
-    String,
-    String,
-    Vec<u8>,
-);
 
 #[derive(sqlx::Type, From)]
 #[sqlx(transparent, no_pg_array)]
