@@ -24,9 +24,8 @@ pub struct RoadRow<T: CoordNum> {
     pub tunnel: bool,
 }
 
-pub struct Road<T: CoordNum> {
-    pub rtree: RTree<GeomWithData<T, u64>>,
-
+pub struct Road<T: CoordNum + RTreeObject + PointDistance + Clone> {
+    pub rtree: RoadIndex<T>,
     pub id: Vec<Id>, // Primary key
     pub geom: Vec<LineString<T>>,
     pub osm_id: Vec<u64>,
@@ -74,6 +73,13 @@ impl<T: RTreeObject + PointDistance + Clone> RoadIndex<T> {
         todo!()
     }
 }
+
+impl<T: RTreeObject + PointDistance + Clone> Default for RoadIndex<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 
 pub struct NameKey(pub Id);
 
