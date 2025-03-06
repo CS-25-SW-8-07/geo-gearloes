@@ -101,10 +101,12 @@ pub async fn box_query(
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
     let limit = limit.map(|x| format!("limit {x}")).unwrap_or("".into()); //i could not get sql's LIMIT ALL to work, so this is a workaround
 
-    let res: Vec<MyRoad> = sqlx::query_as(&format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
-select id, st_asbinary(st_geometryn(geom,1),'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
-join box on st_intersects(geom,bbox)
-{limit};")).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?; // multilinestring gets converted to just linestring
+    let sql = format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
+    select id, st_asbinary(st_geometryn(geom,1),'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
+    join box on st_intersects(geom,bbox)
+    {limit};");
+
+    let res: Vec<MyRoad> = sqlx::query_as(&sql).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?; // multilinestring gets converted to just linestring
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
 
@@ -117,22 +119,23 @@ pub async fn box_query_without(
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
     let limit = limit.map(|x| format!("limit {x}")).unwrap_or("".into());
 
-    let where_clause = match limit.len() {
+    let where_clause = match without.len() {
         0 => {"".into()}
         _ => {
             let not_in = without
-                .into_iter()
+                .iter()
                 .map(|id| format!("{},", id.to_string()))
                 .collect::<String>();
             let not_in = &not_in[0..not_in.len() - 1];
-            format!("where not in ({not_in})")
+            format!("where id not in ({not_in})")
         }
     };
 
-    let res: Vec<MyRoad> = sqlx::query_as(&format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
+    let sql = format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
     select id, st_asbinary(st_geometryn(geom,1),'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
-    join box on st_intersects(geom,bbox) \n {where_clause} \n
-    {limit};")).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?;
+    join box on st_intersects(geom,bbox)  {where_clause} 
+    {limit};");
+    let res: Vec<MyRoad> = sqlx::query_as(&sql).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?;
 
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
@@ -218,6 +221,14 @@ mod tests {
         async_std::task::block_on(async { bind(&*CONN, Some(CONNCOUNT)).await.expect("msg") })
     });
 
+
+    static BBOX_CASSIOPEIA: LazyLock<Bbox<f64>> = LazyLock::new(|| {
+        (
+            (9.989492935608991, 57.009828137476511),
+            (9.995526228694693, 57.013236271456691),
+        )
+    });
+
     #[async_std::test]
     async fn it_connects() {
         let pool = bind(&*CONN, Some(1)).await;
@@ -232,10 +243,7 @@ mod tests {
             .expect("Failed to connect to database, perhaps it is offline");
         let res = box_query_as(
             pool.acquire().await.expect("failed to acquire connection"),
-            (
-                (9.989492935608991, 57.009828137476511),
-                (9.995526228694693, 57.013236271456691),
-            ),
+            *BBOX_CASSIOPEIA,
         )
         .await
         .expect("error in box query");
@@ -244,16 +252,21 @@ mod tests {
 
     #[async_std::test]
     async fn sorry_to_box_in() {
-        let bbox_cassiopeia = (
-            (9.989492935608991, 57.009828137476511),
-            (9.995526228694693, 57.013236271456691),
-        );
-        let conn = (*POOL).acquire().await.expect("msg");
-        let res = box_query(conn, bbox_cassiopeia, None).await;
+        let conn = (*POOL).acquire().await.expect("failed to establish database connection, perhaps it is closed");
+        let res = box_query(conn, *BBOX_CASSIOPEIA, None).await;
         assert!(
             matches!(&res, Ok(x) if x.len()==79),
             "x.len()=={}",
             res.map(|x| x.len()).unwrap_or(0)
         )
     }
+
+    #[async_std::test]
+    async fn box_without() {
+        let without = [592125,592124,661737];
+        let conn = (*POOL).acquire().await.expect("failed to establish database connection, perhaps it is closed");
+        let res = box_query_without(conn, *BBOX_CASSIOPEIA, &without, None).await.expect("failed to execute query");
+        assert_eq!(79-without.len(),res.len())
+    }
+
 }
