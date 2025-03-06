@@ -1,11 +1,7 @@
-use std::str::FromStr;
-
 use proc_macro::TokenStream as TS;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
-use syn::{
-    Data, DataStruct, DeriveInput, Field, Fields, FieldsNamed, Ident, Meta, Path, parse_macro_input,
-};
+use syn::{Data, DeriveInput, Field, Fields, FieldsNamed, Meta, parse_macro_input};
 
 #[proc_macro_derive(Parquet, attributes(parquet_type))]
 pub fn parquet(input: TS) -> TS {
@@ -18,12 +14,14 @@ pub fn parquet(input: TS) -> TS {
         panic!("Can only be for named structs");
     };
 
-    let to = to_parquet(&ident, &fields);
-    let from = from_parquet(&ident, &fields);
+    let to = to_parquet(&fields);
+    let from = from_parquet(&fields);
 
     let code = quote! {
-        #to
-        #from
+        impl ::comms::Parquet for #ident {
+            #to
+            #from
+        }
     };
 
     code.into()
@@ -53,7 +51,7 @@ fn parse_field(field: &Field) -> (TokenStream, Option<TokenStream>) {
     (name, ty)
 }
 
-fn to_parquet(ident: &Ident, fields: &FieldsNamed) -> TokenStream {
+fn to_parquet(fields: &FieldsNamed) -> TokenStream {
     fn create_batch(fields: &FieldsNamed) -> TokenStream {
         let batch = fields.named.iter().map(parse_field).map(|(name, ty)| {
             let name_str = name.to_string();
@@ -66,25 +64,23 @@ fn to_parquet(ident: &Ident, fields: &FieldsNamed) -> TokenStream {
 
     let batch = create_batch(fields);
     quote! {
-        impl ::comms::ToParquet for #ident {
-            fn to_parquet(self) -> Result<::comms::Bytes, ::comms::ParquetParseError> {
-                use ::comms::comms_types::ToColumn as _;
-                let batch = ::comms::exports::RecordBatch::try_from_iter([
-                    #batch
-                ]).map_err(Into::<::comms::ParquetParseError>::into)?;
-                let props = ::comms::exports::WriterProperties::new();
-                let mut arrow_buf = Vec::<u8>::new();
-                let mut arrow_writer = ::comms::exports::ArrowWriter::try_new(&mut arrow_buf, batch.schema(), Some(props) )
-                    .map_err(Into::<::comms::ParquetParseError>::into)?;
-                arrow_writer.write(&batch).map_err(Into::<::comms::ParquetParseError>::into)?;
-                arrow_writer.close().map_err(Into::<::comms::ParquetParseError>::into)?;
-                Ok(::comms::Bytes::from(arrow_buf))
-            }
+        fn to_parquet(self) -> Result<::comms::Bytes, ::comms::ParquetParseError> {
+            use ::comms::comms_types::ToColumn as _;
+            let batch = ::comms::exports::RecordBatch::try_from_iter([
+                #batch
+            ]).map_err(Into::<::comms::ParquetParseError>::into)?;
+            let props = ::comms::exports::WriterProperties::new();
+            let mut arrow_buf = Vec::<u8>::new();
+            let mut arrow_writer = ::comms::exports::ArrowWriter::try_new(&mut arrow_buf, batch.schema(), Some(props) )
+                .map_err(Into::<::comms::ParquetParseError>::into)?;
+            arrow_writer.write(&batch).map_err(Into::<::comms::ParquetParseError>::into)?;
+            arrow_writer.close().map_err(Into::<::comms::ParquetParseError>::into)?;
+            Ok(::comms::Bytes::from(arrow_buf))
         }
     }
 }
 
-fn from_parquet(ident: &Ident, data: &FieldsNamed) -> TokenStream {
+fn from_parquet(data: &FieldsNamed) -> TokenStream {
     let fields = data.named.iter().map(parse_field);
     let init = fields.clone().map(|(name, ty)| {
         ty.map(|ty| quote! { let mut #name: Vec<#ty> = vec![]; })
@@ -107,26 +103,24 @@ fn from_parquet(ident: &Ident, data: &FieldsNamed) -> TokenStream {
     });
 
     quote! {
-        impl ::comms::FromParquet for #ident {
-            fn from_parquet(bts: ::comms::Bytes) -> Result<Self, ::comms::ParquetParseError> {
-                use ::comms::comms_types::AppendFromColumn as _;
-                #(#init)*
-                let arrow_reader = ::comms::exports::ArrowReaderBuilder::try_new(bts)
-                    .map_err(Into::<::comms::ParquetParseError>::into)?
-                    .build()
-                    .map_err(Into::<::comms::ParquetParseError>::into)?;
+        fn from_parquet(bts: ::comms::Bytes) -> Result<Self, ::comms::ParquetParseError> {
+            use ::comms::comms_types::AppendFromColumn as _;
+            #(#init)*
+            let arrow_reader = ::comms::exports::ArrowReaderBuilder::try_new(bts)
+                .map_err(Into::<::comms::ParquetParseError>::into)?
+                .build()
+                .map_err(Into::<::comms::ParquetParseError>::into)?;
 
-                for record in arrow_reader {
-                    let record = record.map_err(Into::<::comms::ParquetParseError>::into)?;
-                    #(#append)*
-                }
-
-                #(#clean_up)*
-
-                Ok(Self {
-                    #(#names),*
-                })
+            for record in arrow_reader {
+                let record = record.map_err(Into::<::comms::ParquetParseError>::into)?;
+                #(#append)*
             }
+
+            #(#clean_up)*
+
+            Ok(Self {
+                #(#names),*
+            })
         }
     }
 }

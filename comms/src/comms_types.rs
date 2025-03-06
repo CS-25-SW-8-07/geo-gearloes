@@ -12,21 +12,14 @@ use arrow_schema::ArrowError;
 use bytes::Bytes;
 use geo_types::LineString;
 use itertools::Itertools;
-use parquet::{
-    arrow::{arrow_reader::ArrowReaderBuilder, *},
-    errors::ParquetError,
-    file::properties::WriterProperties,
-};
+use parquet::errors::ParquetError;
 use thiserror::Error;
 use wkb::error::WKBError;
 
-pub trait ToParquet: Sized {
+pub trait Parquet: Sized {
     /// Convert a [Self] into [Bytes] reperecenting a
     /// parquet arrow format.
     fn to_parquet(self) -> Result<Bytes, ParquetParseError>;
-}
-
-pub trait FromParquet: Sized {
     /// Translate a [Bytes] sequence reprecenting parquet arrow into [Self].
     fn from_parquet(bts: Bytes) -> Result<Self, ParquetParseError>;
 }
@@ -232,148 +225,3 @@ impl AppendFromColumn for Vec<LineString> {
         Ok(())
     }
 }
-
-/*
-impl ToParquet for Roads {
-    fn to_parquet(self) -> Result<Bytes, ParquetParseError> {
-        let batch = RecordBatch::try_from_iter([
-            self.id.to_column("id")?,
-            self.osm_id.to_column("osm_id")?,
-            self.code.to_column("code")?,
-            self.direction
-                .into_iter()
-                .map(|x| x as u8)
-                .collect_vec()
-                .to_column("direction")?,
-            self.maxspeed.to_column("maxspeed")?,
-            self.layer.to_column("layer")?,
-            self.bridge.to_column("bridge")?,
-            self.tunnel.to_column("tunnel")?,
-            self.geom.to_column("geom")?,
-        ])
-        .map_err(Into::<ParquetParseError>::into)?;
-
-        let props = WriterProperties::new();
-
-        let mut arrow_buf = Vec::<u8>::new();
-        let mut arrow_writer = ArrowWriter::try_new(&mut arrow_buf, batch.schema(), Some(props))
-            .map_err(Into::<ParquetParseError>::into)?;
-
-        arrow_writer
-            .write(&batch)
-            .map_err(Into::<ParquetParseError>::into)?;
-
-        arrow_writer
-            .close()
-            .map_err(Into::<ParquetParseError>::into)?;
-
-        Ok(Bytes::from(arrow_buf))
-    }
-}
-
-impl FromParquet for Roads {
-    fn from_parquet(bts: Bytes) -> Result<Self, ParquetParseError> {
-        println!("{}", bts.len());
-        let arrow_reader = ArrowReaderBuilder::try_new(bts)
-            .map_err(ParquetParseError::ParquetError)?
-            .build()
-            .map_err(ParquetParseError::ParquetError)?;
-
-        let mut id = vec![];
-        let mut osm_id = vec![];
-        let mut code = vec![];
-        let mut maxspeed = vec![];
-        let mut direction: Vec<u8> = vec![];
-        let mut layer = vec![];
-        let mut bridge = vec![];
-        let mut tunnel = vec![];
-        let mut geom = vec![];
-
-        for record in arrow_reader {
-            let record = record.map_err(Into::<ParquetParseError>::into)?;
-            id.append_from_column("id", &record)?;
-            osm_id.append_from_column("osm_id", &record)?;
-            code.append_from_column("code", &record)?;
-            direction.append_from_column("direction", &record)?;
-            maxspeed.append_from_column("maxspeed", &record)?;
-            layer.append_from_column("layer", &record)?;
-            bridge.append_from_column("bridge", &record)?;
-            tunnel.append_from_column("tunnel", &record)?;
-            geom.append_from_column("geom", &record)?;
-        }
-
-        let direction = direction
-            .into_iter()
-            .map(Direction::try_from)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| ParquetParseError::DirectionOutOfBounds)?;
-
-        Ok(Self {
-            id,
-            osm_id,
-            geom,
-            code,
-            direction,
-            maxspeed,
-            layer,
-            bridge,
-            tunnel,
-        })
-    }
-}
-
-#[cfg(test)]
-mod test {
-
-    use geo_types::Coord;
-    use rand::{random, random_range};
-
-    use rusty_roads::{Id, Road, Roads};
-
-    use super::*;
-
-    fn random_road(id: Id) -> Road {
-        Road {
-            id,
-            geom: LineString::from_iter((0..random_range(10..100)).map(|_| Coord {
-                x: random(),
-                y: random(),
-            })),
-            osm_id: random(),
-            code: random(),
-            direction: Direction::try_from(random_range(0..=2)).unwrap(),
-            maxspeed: random(),
-            layer: random_range(-3..=3),
-            bridge: random(),
-            tunnel: random(),
-        }
-    }
-
-    fn eq<T: PartialEq>((t, q): (T, T)) -> bool {
-        t == q
-    }
-
-    macro_rules! check {
-        ($v: expr, $v2: expr, $e:ident) => {
-            assert!($v.$e.iter().zip($v2.$e.iter()).all(eq))
-        };
-    }
-
-    #[test]
-    fn test() {
-        let roads: Roads = ((0..100).map(random_road)).collect();
-        let check = roads.clone();
-        let parquet = roads.to_parquet().unwrap();
-        let deque = Roads::from_parquet(parquet).unwrap();
-        check!(check, deque, id);
-        check!(check, deque, osm_id);
-        check!(check, deque, geom);
-        check!(check, deque, code);
-        check!(check, deque, direction);
-        check!(check, deque, maxspeed);
-        check!(check, deque, layer);
-        check!(check, deque, bridge);
-        check!(check, deque, tunnel);
-    }
-}
-*/
