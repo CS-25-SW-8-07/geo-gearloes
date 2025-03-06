@@ -29,7 +29,7 @@ type DbRoad = (i32, Vec<u8>, i64, i16, String, i16, i16, bool, bool); //TODO: os
 
 #[derive(sqlx::Type, From)]
 #[sqlx(transparent, no_pg_array)]
-struct MyRoad(RoadRow);
+struct MyRoad(Road);
 
 #[derive(sqlx::FromRow, From)]
 #[sqlx(transparent)]
@@ -58,8 +58,8 @@ impl FromRow<'_, postgres::PgRow> for MyRoad {
             "F" => Some(Direction::Forward),
             _ => None,
         };
-        let road = RoadRow {
-            id: row.try_get::<i32, _>("id")? as u64,
+        let road = Road {
+            id: row.try_get::<i32, _>("id")? as rusty_roads::Id,
             geom: ls,
             osm_id: row.try_get::<i64, _>("osm_id")? as u64,
             code: row.try_get::<i16, _>("code")? as u16,
@@ -84,7 +84,7 @@ pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, s
 pub async fn box_query_as(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
-) -> Result<Vec<rusty_roads::RoadRow>, sqlx::Error> {
+) -> Result<Vec<rusty_roads::Road>, sqlx::Error> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
     let res: Vec<_DbRoad> = sqlx::query_as("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
 select gid, osm_id, code, fclass, name, ref, oneway, maxspeed, layer, bridge, tunnel, st_asbinary(geom,'NDR') from public.gis_osm_roads_free_1
@@ -97,7 +97,7 @@ pub async fn box_query(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
     limit: Option<u32>,
-) -> Result<Vec<rusty_roads::RoadRow>, sqlx::Error> {
+) -> Result<Vec<rusty_roads::Road>, sqlx::Error> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
     let limit = limit.map(|x| format!("limit {x}")).unwrap_or("".into()); //i could not get sql's LIMIT ALL to work, so this is a workaround
 
@@ -118,7 +118,7 @@ fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
 }
 
 #[deprecated]
-fn into_road(road: DbRoad) -> Option<RoadRow> {
+fn into_road(road: DbRoad) -> Option<Road> {
     let ls = wkb_to_linestring(&road.1)?;
     let direc = |c: &str| match c {
         "B" => Some(Direction::Bidirectional),
@@ -128,8 +128,8 @@ fn into_road(road: DbRoad) -> Option<RoadRow> {
     };
 
     // all data from the danish road dataset are within casting bounds
-    let res = RoadRow {
-        id: road.0 as u64,
+    let res = Road {
+        id: road.0 as rusty_roads::Id,
         geom: ls,
         osm_id: road.2 as u64,
         code: road.3 as u16,
@@ -143,10 +143,10 @@ fn into_road(road: DbRoad) -> Option<RoadRow> {
 }
 
 #[deprecated]
-fn to_road(row: _DbRoad) -> Option<RoadRow> {
+fn to_road(row: _DbRoad) -> Option<Road> {
     let ls = wkb_to_linestring(&row.11)?;
-    Some(RoadRow {
-        id: row.0 as u64,
+    Some(Road {
+        id: row.0 as rusty_roads::Id,
         geom: ls,
         osm_id: row.1.parse::<u64>().ok()?,
         code: row.2 as u16,                  //FIXME

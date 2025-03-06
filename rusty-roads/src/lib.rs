@@ -1,6 +1,7 @@
 use geo_types::LineString;
 
 pub mod parquet;
+use itertools::Itertools;
 pub use parquet::*;
 use thiserror::Error;
 
@@ -33,13 +34,13 @@ impl TryFrom<u8> for Direction {
     }
 }
 
-type Id = u64;
+pub type Id = u64;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RoadKey(pub Id);
 
 #[derive(Debug, Clone)]
-pub struct RoadRow {
+pub struct Road {
     pub id: Id,
     pub geom: LineString<f64>,
     pub osm_id: u64,
@@ -52,7 +53,7 @@ pub struct RoadRow {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct Road {
+pub struct Roads {
     pub id: Vec<Id>, // Primary key
     pub geom: Vec<LineString<f64>>,
     pub osm_id: Vec<u64>,
@@ -64,10 +65,10 @@ pub struct Road {
     pub tunnel: Vec<bool>,
 }
 
-impl Insertable<RoadRow> for Road {
+impl Insertable<Road> for Roads {
     type Key = RoadKey;
 
-    fn insert(&mut self, data: &RoadRow) -> Self::Key {
+    fn insert(&mut self, data: &Road) -> Self::Key {
         // Does not insert duplicates
         if let Some((id, _)) = self
             .id
@@ -98,12 +99,12 @@ impl Insertable<RoadRow> for Road {
         RoadKey(next_id)
     }
 
-    fn insert_many(&mut self, data: &[RoadRow]) -> Vec<Self::Key> {
+    fn insert_many(&mut self, data: &[Road]) -> Vec<Self::Key> {
         data.iter().map(|x| self.insert(x)).collect()
     }
 }
 
-impl Queryable<RoadKey> for Road {
+impl Queryable<RoadKey> for Roads {
     fn find_index(&self, key: RoadKey) -> Option<usize> {
         self.id.iter().position(|&x| x == key.0)
     }
@@ -113,8 +114,8 @@ impl Queryable<RoadKey> for Road {
     }
 }
 
-impl Deleteable<RoadKey> for Road {
-    type Output = RoadRow;
+impl Deleteable<RoadKey> for Roads {
+    type Output = Road;
     fn delete(&mut self, key: RoadKey) -> Option<Self::Output> {
         if let Some(index) = self.id.iter().position(|&x| x == key.0) {
             Some(Self::Output {
@@ -138,10 +139,10 @@ impl Deleteable<RoadKey> for Road {
     }
 }
 
-impl FromIterator<RoadRow> for Road {
-    fn from_iter<T: IntoIterator<Item = RoadRow>>(iter: T) -> Self {
+impl FromIterator<Road> for Roads {
+    fn from_iter<T: IntoIterator<Item = Road>>(iter: T) -> Self {
         let mut slf: Self = default();
-        slf.insert_many(&iter.into_iter().collect::<Vec<RoadRow>>());
+        slf.insert_many(&iter.into_iter().collect_vec());
         slf
     }
 }

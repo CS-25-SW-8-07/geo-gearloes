@@ -1,7 +1,7 @@
 use geo_traits::{to_geo::ToGeoLineString, GeometryTrait, GeometryType};
 use std::sync::Arc;
 
-use crate::{Direction, Road};
+use crate::{Direction, Road, Roads};
 use arrow_array::{
     cast::AsArray,
     types::{
@@ -220,7 +220,7 @@ impl AppendFromColumn for Vec<LineString> {
     }
 }
 
-impl ToParquet for Road {
+impl ToParquet for Roads {
     type Error = RoadParseError;
     fn to_parquet(self) -> Result<Bytes, Self::Error> {
         let batch = RecordBatch::try_from_iter([
@@ -256,7 +256,7 @@ impl ToParquet for Road {
     }
 }
 
-impl FromParquet for Road {
+impl FromParquet for Roads {
     type Error = RoadParseError;
     fn from_parquet(bts: Bytes) -> Result<Self, Self::Error> {
         println!("{}", bts.len());
@@ -294,7 +294,7 @@ impl FromParquet for Road {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| RoadParseError::DirectionOutOfBounds)?;
 
-        Ok(Road {
+        Ok(Self {
             id,
             osm_id,
             geom,
@@ -314,12 +314,12 @@ mod test {
     use geo_types::Coord;
     use rand::{random, random_range};
 
-    use crate::{Id, RoadRow};
+    use crate::{Id, Roads};
 
     use super::*;
 
-    fn random_road(id: Id) -> RoadRow {
-        RoadRow {
+    fn random_road(id: Id) -> Road {
+        Road {
             id,
             geom: LineString::from_iter((0..random_range(10..100)).map(|_| Coord {
                 x: random(),
@@ -347,10 +347,10 @@ mod test {
 
     #[test]
     fn test() {
-        let roads: Road = ((0..100).map(random_road)).collect();
+        let roads: Roads = ((0..100).map(random_road)).collect();
         let check = roads.clone();
         let parquet = roads.to_parquet().unwrap();
-        let deque = Road::from_parquet(parquet).unwrap();
+        let deque = Roads::from_parquet(parquet).unwrap();
         check!(check, deque, id);
         check!(check, deque, osm_id);
         check!(check, deque, geom);
