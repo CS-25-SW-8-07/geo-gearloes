@@ -36,10 +36,10 @@ pub struct Roads<T: CoordNum> {
     pub tunnel: Vec<bool>,
 }
 
-impl<T: CoordNum> Insertable<RoadRow<T>> for Road<T> {
+impl<T: CoordNum> Insertable<Road<T>> for Roads<T> {
     type Key = RoadKey;
 
-    fn insert(&mut self, data: &RoadRow<T>) -> Self::Key {
+    fn insert(&mut self, data: &Road<T>) -> Self::Key {
         // Does not insert duplicates
         if let Some((id, _)) = self.id.iter().zip(self.osm_id.iter()).find(|(&_, &o)| data.osm_id == o) {
             return RoadKey(*id);
@@ -67,12 +67,12 @@ impl<T: CoordNum> Insertable<RoadRow<T>> for Road<T> {
         RoadKey(next_id)
     }
 
-    fn insert_many(&mut self, data: &[RoadRow<T>]) -> Vec<Self::Key> {
+    fn insert_many(&mut self, data: &[Road<T>]) -> Vec<Self::Key> {
         data.iter().map(|x| self.insert(x)).collect()
     }
 }
 
-impl<T: CoordNum> Queryable<RoadKey> for Road<T> {
+impl<T: CoordNum> Queryable<RoadKey> for Roads<T> {
     fn find_index(&self, key: RoadKey) -> Option<usize> {
         self.id.iter().position(|&x| x == key.0)
     }
@@ -82,8 +82,8 @@ impl<T: CoordNum> Queryable<RoadKey> for Road<T> {
     }
 }
 
-impl<T: CoordNum> Deleteable<RoadKey> for Road<T> {
-    type Output = RoadRow<T>;
+impl<T: CoordNum> Deleteable<RoadKey> for Roads<T> {
+    type Output = Road<T>;
     fn delete(&mut self, key: RoadKey) -> Option<Self::Output> {
         if let Some(index) = self.id.iter().position(|&x| x == key.0) {
             Some(Self::Output {
