@@ -150,7 +150,6 @@ fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,7 +187,7 @@ mod tests {
             (9.995526228694693, 57.013236271456691),
         )
     });
-
+    const BBOX_CASSIOPEIA_COUNT: usize = 79;
     #[async_std::test]
     async fn it_connects() {
         let pool = bind(&*CONN, Some(1)).await;
@@ -196,6 +195,8 @@ mod tests {
     }
 
     mod box_query {
+        use std::f64::NAN;
+
         use super::*;
 
         #[async_std::test]
@@ -206,10 +207,21 @@ mod tests {
                 .expect("failed to establish database connection, perhaps it is closed");
             let res = box_query(conn, *BBOX_CASSIOPEIA, None).await;
             assert!(
-                matches!(&res, Ok(x) if x.len()==79),
+                matches!(&res, Ok(x) if x.len()==BBOX_CASSIOPEIA_COUNT),
                 "x.len()=={}",
                 res.map(|x| x.len()).unwrap_or(0)
             )
+        }
+        #[async_std::test]
+        async fn sorry_to_box_in_illegal_box() {
+            let bbox = ((NAN, NAN), (NAN, NAN));
+            const NAN_BOX: usize = 0;
+            let conn = (*POOL)
+                .acquire()
+                .await
+                .expect("failed to establish database connection, perhaps it is closed");
+            let res = box_query(conn, bbox, None).await.expect("failed to execute query");
+            assert_eq!(NAN_BOX,res.len())
         }
     }
 
@@ -226,7 +238,19 @@ mod tests {
             let res = box_query_without(conn, *BBOX_CASSIOPEIA, &without, None)
                 .await
                 .expect("failed to execute query");
-            assert_eq!(79 - without.len(), res.len())
+            assert_eq!(BBOX_CASSIOPEIA_COUNT - without.len(), res.len())
+        }
+
+        #[async_std::test]
+        async fn box_without_but_empty() {
+            let conn = (*POOL)
+                .acquire()
+                .await
+                .expect("failed to establish database connection, perhaps it is closed");
+            let res = box_query_without(conn, *BBOX_CASSIOPEIA, &[], None)
+                .await
+                .expect("failed to execute query");
+            assert_eq!(BBOX_CASSIOPEIA_COUNT, res.len())
         }
     }
 }
