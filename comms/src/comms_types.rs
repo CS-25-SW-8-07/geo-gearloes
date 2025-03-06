@@ -1,13 +1,12 @@
-use geo_traits::{to_geo::ToGeoLineString, GeometryTrait, GeometryType};
+use geo_traits::{GeometryTrait, GeometryType, to_geo::ToGeoLineString};
 use std::sync::Arc;
 
-use crate::{Direction, Roads};
 use arrow_array::{
+    ArrayRef, ArrowPrimitiveType, BinaryArray, BooleanArray, PrimitiveArray, RecordBatch,
     cast::AsArray,
     types::{
-        Int16Type, Int32Type, Int64Type, Int8Type, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+        Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
     },
-    ArrayRef, ArrowPrimitiveType, BinaryArray, BooleanArray, PrimitiveArray, RecordBatch,
 };
 use arrow_schema::ArrowError;
 use bytes::Bytes;
@@ -22,20 +21,18 @@ use thiserror::Error;
 use wkb::error::WKBError;
 
 pub trait ToParquet: Sized {
-    type Error;
     /// Convert a [Self] into [Bytes] reperecenting a
     /// parquet arrow format.
-    fn to_parquet(self) -> Result<Bytes, Self::Error>;
+    fn to_parquet(self) -> Result<Bytes, ParquetParseError>;
 }
 
 pub trait FromParquet: Sized {
-    type Error;
     /// Translate a [Bytes] sequence reprecenting parquet arrow into [Self].
-    fn from_parquet(bts: Bytes) -> Result<Self, Self::Error>;
+    fn from_parquet(bts: Bytes) -> Result<Self, ParquetParseError>;
 }
 
 #[derive(Debug, Error)]
-pub enum RoadParseError {
+pub enum ParquetParseError {
     #[error("WBK Eroor {0}")]
     GeomEncoding(WKBError),
     #[error("Arrow Eroor {0}")]
@@ -52,7 +49,23 @@ pub enum RoadParseError {
     DirectionOutOfBounds,
 }
 
-trait ParquetType {
+impl From<WKBError> for ParquetParseError {
+    fn from(value: WKBError) -> Self {
+        Self::GeomEncoding(value)
+    }
+}
+impl From<ArrowError> for ParquetParseError {
+    fn from(value: ArrowError) -> Self {
+        Self::ArrowError(value)
+    }
+}
+impl From<ParquetError> for ParquetParseError {
+    fn from(value: ParquetError) -> Self {
+        Self::ParquetError(value)
+    }
+}
+
+pub trait ParquetType {
     type ParquetPrimitiveType: ArrowPrimitiveType<Native = Self>;
 }
 
@@ -88,15 +101,15 @@ impl ParquetType for u64 {
     type ParquetPrimitiveType = UInt64Type;
 }
 
-trait ToParquetType {
-    fn to_parquet_type(self) -> Result<ArrayRef, RoadParseError>;
+pub trait ToParquetType {
+    fn to_parquet_type(self) -> Result<ArrayRef, ParquetParseError>;
 }
 
 impl<U: ParquetType> ToParquetType for Vec<U>
 where
     PrimitiveArray<U::ParquetPrimitiveType>: From<Self>,
 {
-    fn to_parquet_type(self) -> Result<ArrayRef, RoadParseError> {
+    fn to_parquet_type(self) -> Result<ArrayRef, ParquetParseError> {
         Ok(Arc::new(
             Into::<PrimitiveArray<U::ParquetPrimitiveType>>::into(self),
         ))
@@ -104,7 +117,7 @@ where
 }
 
 impl ToParquetType for Vec<bool> {
-    fn to_parquet_type(self) -> Result<ArrayRef, RoadParseError> {
+    fn to_parquet_type(self) -> Result<ArrayRef, ParquetParseError> {
         Ok(Arc::new(BooleanArray::from(self)))
     }
 }
@@ -116,31 +129,31 @@ fn line_string_to_bytes(ls: LineString) -> Result<Vec<u8>, WKBError> {
 }
 
 impl ToParquetType for Vec<LineString> {
-    fn to_parquet_type(self) -> Result<ArrayRef, RoadParseError> {
+    fn to_parquet_type(self) -> Result<ArrayRef, ParquetParseError> {
         let bytes = self.into_iter().map(line_string_to_bytes);
         let bytes = bytes
             .collect::<Result<Vec<Vec<u8>>, WKBError>>()
-            .map_err(RoadParseError::GeomEncoding)?;
+            .map_err(ParquetParseError::GeomEncoding)?;
         let bts = bytes.iter().map(|v| &v[..]).collect_vec();
         let b_array = BinaryArray::from_vec(bts);
         Ok(Arc::new(b_array))
     }
 }
 
-trait ToColumn: ToParquetType + Sized {
-    fn to_column<S: AsRef<str>>(self, name: S) -> Result<(S, ArrayRef), RoadParseError> {
+pub trait ToColumn: ToParquetType + Sized {
+    fn to_column<S: AsRef<str>>(self, name: S) -> Result<(S, ArrayRef), ParquetParseError> {
         Ok((name, self.to_parquet_type()?))
     }
 }
 
 impl<T: ToParquetType + Sized> ToColumn for T {}
 
-trait AppendFromColumn {
+pub trait AppendFromColumn {
     fn append_from_column(
         &mut self,
         column_name: &str,
         record: &RecordBatch,
-    ) -> Result<(), RoadParseError>;
+    ) -> Result<(), ParquetParseError>;
 }
 #[inline]
 fn parse_record<'a, Intermediate, Return, FN>(
@@ -148,7 +161,7 @@ fn parse_record<'a, Intermediate, Return, FN>(
     vec: &mut Vec<Return>,
     record: &'a RecordBatch,
     f: FN,
-) -> Result<(), RoadParseError>
+) -> Result<(), ParquetParseError>
 where
     FN: Fn(&'a ArrayRef) -> Intermediate,
     Intermediate: IntoIterator,
@@ -156,11 +169,11 @@ where
 {
     let colval = record
         .column_by_name(col)
-        .ok_or(RoadParseError::MissingColumn(col.into()))?;
+        .ok_or(ParquetParseError::MissingColumn(col.into()))?;
     let mut val = f(colval)
         .into_iter()
         .collect::<Option<Vec<_>>>()
-        .ok_or(RoadParseError::MissingValue(col.into()))?;
+        .ok_or(ParquetParseError::MissingValue(col.into()))?;
     vec.append(&mut val);
     Ok(())
 }
@@ -170,7 +183,7 @@ impl<T: ParquetType> AppendFromColumn for Vec<T> {
         &mut self,
         column_name: &str,
         record: &RecordBatch,
-    ) -> Result<(), RoadParseError> {
+    ) -> Result<(), ParquetParseError> {
         parse_record(
             column_name,
             self,
@@ -185,17 +198,17 @@ impl AppendFromColumn for Vec<bool> {
         &mut self,
         column_name: &str,
         record: &RecordBatch,
-    ) -> Result<(), RoadParseError> {
+    ) -> Result<(), ParquetParseError> {
         parse_record(column_name, self, record, ArrayRef::as_boolean)
     }
 }
 
-fn bytes_to_linestring(bts: &[u8]) -> Result<LineString, RoadParseError> {
-    let geom_parsed = wkb::reader::read_wkb(bts).map_err(RoadParseError::GeomEncoding)?;
+fn bytes_to_linestring(bts: &[u8]) -> Result<LineString, ParquetParseError> {
+    let geom_parsed = wkb::reader::read_wkb(bts).map_err(Into::<ParquetParseError>::into)?;
     let geom_type = geom_parsed.as_type();
 
     let GeometryType::LineString(geom) = geom_type else {
-        return Err(RoadParseError::IncorectGeomValue);
+        return Err(ParquetParseError::IncorectGeomValue);
     };
 
     Ok(geom.to_line_string())
@@ -206,7 +219,7 @@ impl AppendFromColumn for Vec<LineString> {
         &mut self,
         column_name: &str,
         record: &RecordBatch,
-    ) -> Result<(), RoadParseError> {
+    ) -> Result<(), ParquetParseError> {
         let mut v = vec![];
         parse_record(column_name, &mut v, record, ArrayRef::as_binary::<i32>)?;
         let mut ls = v
@@ -220,9 +233,9 @@ impl AppendFromColumn for Vec<LineString> {
     }
 }
 
+/*
 impl ToParquet for Roads {
-    type Error = RoadParseError;
-    fn to_parquet(self) -> Result<Bytes, Self::Error> {
+    fn to_parquet(self) -> Result<Bytes, ParquetParseError> {
         let batch = RecordBatch::try_from_iter([
             self.id.to_column("id")?,
             self.osm_id.to_column("osm_id")?,
@@ -238,32 +251,33 @@ impl ToParquet for Roads {
             self.tunnel.to_column("tunnel")?,
             self.geom.to_column("geom")?,
         ])
-        .map_err(RoadParseError::ArrowError)?;
+        .map_err(Into::<ParquetParseError>::into)?;
 
         let props = WriterProperties::new();
 
         let mut arrow_buf = Vec::<u8>::new();
         let mut arrow_writer = ArrowWriter::try_new(&mut arrow_buf, batch.schema(), Some(props))
-            .map_err(RoadParseError::ParquetError)?;
+            .map_err(Into::<ParquetParseError>::into)?;
 
         arrow_writer
             .write(&batch)
-            .map_err(RoadParseError::ParquetError)?;
+            .map_err(Into::<ParquetParseError>::into)?;
 
-        arrow_writer.close().map_err(RoadParseError::ParquetError)?;
+        arrow_writer
+            .close()
+            .map_err(Into::<ParquetParseError>::into)?;
 
         Ok(Bytes::from(arrow_buf))
     }
 }
 
 impl FromParquet for Roads {
-    type Error = RoadParseError;
-    fn from_parquet(bts: Bytes) -> Result<Self, Self::Error> {
+    fn from_parquet(bts: Bytes) -> Result<Self, ParquetParseError> {
         println!("{}", bts.len());
         let arrow_reader = ArrowReaderBuilder::try_new(bts)
-            .map_err(RoadParseError::ParquetError)?
+            .map_err(ParquetParseError::ParquetError)?
             .build()
-            .map_err(RoadParseError::ParquetError)?;
+            .map_err(ParquetParseError::ParquetError)?;
 
         let mut id = vec![];
         let mut osm_id = vec![];
@@ -276,7 +290,7 @@ impl FromParquet for Roads {
         let mut geom = vec![];
 
         for record in arrow_reader {
-            let record = record.map_err(RoadParseError::ArrowError)?;
+            let record = record.map_err(Into::<ParquetParseError>::into)?;
             id.append_from_column("id", &record)?;
             osm_id.append_from_column("osm_id", &record)?;
             code.append_from_column("code", &record)?;
@@ -292,7 +306,7 @@ impl FromParquet for Roads {
             .into_iter()
             .map(Direction::try_from)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| RoadParseError::DirectionOutOfBounds)?;
+            .map_err(|_| ParquetParseError::DirectionOutOfBounds)?;
 
         Ok(Self {
             id,
@@ -314,7 +328,7 @@ mod test {
     use geo_types::Coord;
     use rand::{random, random_range};
 
-    use crate::{Id, Roads};
+    use rusty_roads::{Id, Road, Roads};
 
     use super::*;
 
@@ -362,3 +376,4 @@ mod test {
         check!(check, deque, tunnel);
     }
 }
+*/
