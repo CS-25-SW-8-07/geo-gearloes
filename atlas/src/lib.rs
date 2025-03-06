@@ -99,12 +99,41 @@ pub async fn box_query(
     limit: Option<u32>,
 ) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let limit = limit.map(|x|format!("limit {x}")).unwrap_or("".into()); //i could not get sql's LIMIT ALL to work, so this is a workaround
+    let limit = limit.map(|x| format!("limit {x}")).unwrap_or("".into()); //i could not get sql's LIMIT ALL to work, so this is a workaround
 
     let res: Vec<MyRoad> = sqlx::query_as(&format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
 select id, st_asbinary(st_geometryn(geom,1),'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
 join box on st_intersects(geom,bbox)
 {limit};")).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?; // multilinestring gets converted to just linestring
+    Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
+}
+
+pub async fn box_query_without(
+    mut conn: PoolConnection<Postgres>,
+    bbox: Bbox<f64>,
+    without: &[usize],
+    limit: Option<u32>,
+) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
+    let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
+    let limit = limit.map(|x| format!("limit {x}")).unwrap_or("".into());
+
+    let where_clause = match limit.len() {
+        0 => {"".into()}
+        _ => {
+            let not_in = without
+                .into_iter()
+                .map(|id| format!("{},", id.to_string()))
+                .collect::<String>();
+            let not_in = &not_in[0..not_in.len() - 1];
+            format!("where not in ({not_in})")
+        }
+    };
+
+    let res: Vec<MyRoad> = sqlx::query_as(&format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
+    select id, st_asbinary(st_geometryn(geom,1),'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
+    join box on st_intersects(geom,bbox) \n {where_clause} \n
+    {limit};")).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?;
+
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
 
@@ -175,8 +204,9 @@ mod tests {
     static ADDRESS: LazyLock<String> = LazyLock::new(|| {
         env::var("DB_ADDRESS").expect("`DB_ADDRESS` environment variable should be set")
     });
-    static DBNAME: LazyLock<String> =
-        LazyLock::new(|| env::var("DB_NAME").expect("`DB_NAME` environment variable should be set"));
+    static DBNAME: LazyLock<String> = LazyLock::new(|| {
+        env::var("DB_NAME").expect("`DB_NAME` environment variable should be set")
+    });
     static CONN: LazyLock<String> = LazyLock::new(|| {
         dotenv().expect("failed to read environment variables");
         format!(
@@ -220,6 +250,10 @@ mod tests {
         );
         let conn = (*POOL).acquire().await.expect("msg");
         let res = box_query(conn, bbox_cassiopeia, None).await;
-        assert!(matches!(&res, Ok(x) if x.len()==79),"x.len()=={}",res.map(|x|x.len()).unwrap_or(0))
+        assert!(
+            matches!(&res, Ok(x) if x.len()==79),
+            "x.len()=={}",
+            res.map(|x| x.len()).unwrap_or(0)
+        )
     }
 }
