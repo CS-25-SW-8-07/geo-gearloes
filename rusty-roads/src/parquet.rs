@@ -1,7 +1,7 @@
 use geo_traits::{to_geo::ToGeoLineString, GeometryTrait, GeometryType};
 use std::sync::Arc;
 
-use crate::{Direction, Road, Roads};
+use crate::{Direction, Roads};
 use arrow_array::{
     cast::AsArray,
     types::{

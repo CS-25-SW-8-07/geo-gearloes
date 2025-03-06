@@ -186,26 +186,26 @@ mod tests {
         )
     });
     static POOL: LazyLock<Pool<Postgres>> = LazyLock::new(|| {
-        async_std::task::block_on(async { bind(&*CONN, Some(CONNCOUNT)).await.expect("msg") })
+        async_std::task::block_on(async { bind(&CONN, Some(CONNCOUNT)).await.expect("msg") })
     });
 
     #[async_std::test]
     async fn it_connects() {
-        let pool = bind(&*CONN, Some(1)).await;
+        let pool = bind(&CONN, Some(1)).await;
         assert!(matches!(pool, Ok(x) if x.options().get_max_connections() >= 1))
     }
 
     #[async_std::test]
     #[ignore = "function uses old table structure"]
     async fn sorry_to_box_in_old() {
-        let pool = bind(&*CONN, Some(1))
+        let pool = bind(&CONN, Some(1))
             .await
             .expect("Failed to connect to database, perhaps it is offline");
         let res = box_query_as(
             pool.acquire().await.expect("failed to acquire connection"),
             (
-                (9.989492935608991, 57.009828137476511),
-                (9.995526228694693, 57.013236271456691),
+                (9.989492935608991, 57.009_828_137_476_51),
+                (9.995526228694693, 57.013_236_271_456_69),
             ),
         )
         .await
@@ -216,8 +216,8 @@ mod tests {
     #[async_std::test]
     async fn sorry_to_box_in() {
         let bbox_cassiopeia = (
-            (9.989492935608991, 57.009828137476511),
-            (9.995526228694693, 57.013236271456691),
+            (9.989492935608991, 57.009_828_137_476_51),
+            (9.995526228694693, 57.013_236_271_456_69),
         );
         let conn = (*POOL).acquire().await.expect("msg");
         let res = box_query(conn, bbox_cassiopeia, None).await;
