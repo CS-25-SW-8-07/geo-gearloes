@@ -102,19 +102,17 @@ pub async fn box_query(
     let limit = limit.map(|x|format!("limit {x}")).unwrap_or("".into()); //i could not get sql's LIMIT ALL to work, so this is a workaround
 
     let res: Vec<MyRoad> = sqlx::query_as(&format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
-select id, st_asbinary(geom,'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
+select id, st_asbinary(st_geometryn(geom,1),'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
 join box on st_intersects(geom,bbox)
-{limit};")).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?;
-    // let res = res.into_iter().filter_map(into_road).collect::<Vec<_>>(); //TODO: should maybe report on any error in linestring construction
+{limit};")).bind(minx).bind(miny).bind(maxx).bind(maxy).fetch_all(&mut *conn).await?; // multilinestring gets converted to just linestring
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
 
 fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
     let a = read_wkb(bytea).ok()?.try_to_geometry()?;
-    dbg!(&a);
     match a {
         Geometry::LineString(geom) => Some(geom),
-        Geometry::MultiLineString(geoms) => Some(geoms.0[0].clone()), //TODO: in the danish shapefile, EVERY road is a multilinestring containing a single element
+        Geometry::MultiLineString(geoms) => Some(geoms.0[0].clone()),
         _ => None,
     }
 }
