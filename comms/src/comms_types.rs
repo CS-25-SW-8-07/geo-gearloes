@@ -38,8 +38,6 @@ pub enum ParquetParseError {
     MissingValue(String),
     #[error("IncorectGeom Value")]
     IncorectGeomValue,
-    #[error("Direction out of bounds")]
-    DirectionOutOfBounds,
 }
 
 impl From<WKBError> for ParquetParseError {
