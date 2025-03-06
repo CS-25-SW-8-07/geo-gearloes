@@ -12,7 +12,7 @@ type Id = usize;
 #[derive(Debug, Clone, Copy)]
 pub struct RoadKey(pub Id);
 
-pub struct RoadRow<T: CoordNum> {
+pub struct Road<T: CoordNum> {
     pub id: Id,
     pub geom: LineString<T>,
     pub osm_id: u64,
@@ -24,7 +24,7 @@ pub struct RoadRow<T: CoordNum> {
     pub tunnel: bool,
 }
 
-pub struct Road<T: CoordNum> {
+pub struct Roads<T: CoordNum> {
     pub id: Vec<Id>, // Primary key
     pub geom: Vec<LineString<T>>,
     pub osm_id: Vec<u64>,
