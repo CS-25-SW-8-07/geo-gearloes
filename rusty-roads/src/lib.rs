@@ -2,6 +2,7 @@ use comms::Parquet;
 use geo_types::LineString;
 
 use itertools::Itertools;
+
 use thiserror::Error;
 
 #[inline]
