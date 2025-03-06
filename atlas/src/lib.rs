@@ -148,21 +148,6 @@ fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
     }
 }
 
-#[deprecated]
-fn to_road(row: _DbRoad) -> Option<Road<f64>> {
-    let ls = wkb_to_linestring(&row.11)?;
-    Some(Road {
-        id: row.0 as usize,
-        geom: ls,
-        osm_id: row.1.parse::<u64>().ok()?,
-        code: row.2 as u16,                  //FIXME
-        direction: Direction::Bidirectional, //FIXME
-        maxspeed: row.7 as u16,              //FIXME
-        layer: row.8 as i16,                 //TODO: probably an error in schema
-        bridge: true,                        //FIXME
-        tunnel: true,                        //FIXME
-    })
-}
 
 #[cfg(test)]
 mod tests {
