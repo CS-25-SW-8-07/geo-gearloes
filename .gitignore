@@ -201,3 +201,4 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/rust,windows,macos,linux,visualstudiocode,jetbrains+all
 
 .buildconfig
+.env
