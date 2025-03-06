@@ -65,7 +65,7 @@ impl FromRow<'_, postgres::PgRow> for MyRoad {
 /// # Errors
 ///
 /// This function will return an error if the connection issues (e.g. malformed connection string, or if the database is down).
-pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, sqlx::Error> {
+pub async fn create_pool(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, sqlx::Error> {
     PgPoolOptions::new()
         .max_connections(max_conn.unwrap_or(1))
         .connect_lazy(conn)
@@ -163,7 +163,7 @@ mod tests {
         )
     });
     static POOL: LazyLock<Pool<Postgres>> = LazyLock::new(|| {
-        async_std::task::block_on(async { bind(&*CONN, Some(CONNCOUNT)).await.expect("msg") })
+        async_std::task::block_on(async { create_pool(&*CONN, Some(CONNCOUNT)).await.expect("msg") })
     });
 
     static BBOX_CASSIOPEIA: LazyLock<Bbox<f64>> = LazyLock::new(|| {
@@ -175,7 +175,7 @@ mod tests {
     const BBOX_CASSIOPEIA_COUNT: usize = 79;
     #[async_std::test]
     async fn it_connects() {
-        let pool = bind(&*CONN, Some(1)).await;
+        let pool = create_pool(&*CONN, Some(1)).await;
         assert!(matches!(pool, Ok(x) if x.options().get_max_connections() >= 1))
     }
 
