@@ -93,26 +93,11 @@ pub async fn bind(conn: &str, max_conn: Option<u32>) -> Result<Pool<Postgres>, s
 ///
 /// This function will return an error if there are connection issues with the database.
 pub async fn box_query(
-    mut conn: PoolConnection<Postgres>,
+    conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
     limit: Option<u32>,
 ) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
-    let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let limit = limit.map(|x| format!("limit {x}")).unwrap_or("".into()); //i could not get sql's LIMIT ALL to work, so this is a workaround
-
-    let sql = format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
-    select id, st_asbinary(st_geometryn(geom,1),'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
-    join box on st_intersects(geom,bbox)
-    {limit};");
-
-    let res: Vec<MyRoad> = sqlx::query_as(&sql)
-        .bind(minx)
-        .bind(miny)
-        .bind(maxx)
-        .bind(maxy)
-        .fetch_all(&mut *conn)
-        .await?; // multilinestring gets converted to just linestring
-    Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
+    box_query_without(conn, bbox, &[], limit).await
 }
 
 /// Like [`box_query`], but allows excluding certain roads by id.
