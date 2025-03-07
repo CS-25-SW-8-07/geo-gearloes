@@ -36,10 +36,9 @@ fn parse_field(field: &Field) -> (TokenStream, Option<TokenStream>) {
         .attrs
         .iter()
         .filter(|x| {
-            x.path()
-                .get_ident()
-                .map(|x| x.to_token_stream().to_string().as_str() == "parquet_type")
-                .unwrap_or(false)
+            x.path().get_ident().map_or(false, |x| {
+                x.to_token_stream().to_string().as_str() == "parquet_type"
+            })
         })
         .map(|x| {
             let Meta::List(meta) = &x.meta else {
@@ -59,9 +58,9 @@ fn to_parquet(fields: &FieldsNamed) -> TokenStream {
     fn create_batch(fields: &FieldsNamed) -> TokenStream {
         let batch = fields.named.iter().map(parse_field).map(|(name, ty)| {
             let name_str = name.to_string();
-            ty.map(|ty|
+            ty.map_or(quote! {self.#name.to_column(#name_str)?}, |ty|
                 quote! {self.#name.into_iter().map(Into::<#ty>::into).collect::<Vec<_>>().to_column(#name_str)?}
-            ).unwrap_or(quote! {self.#name.to_column(#name_str)?})
+            )
         });
         quote! {#(#batch),*}
     }
@@ -87,8 +86,10 @@ fn to_parquet(fields: &FieldsNamed) -> TokenStream {
 fn from_parquet(data: &FieldsNamed) -> TokenStream {
     let fields = data.named.iter().map(parse_field);
     let init = fields.clone().map(|(name, ty)| {
-        ty.map(|ty| quote! { let mut #name: Vec<#ty> = vec![]; })
-            .unwrap_or(quote! {let mut #name = vec![]; })
+        ty.map_or(
+            quote! {let mut #name = vec![]; },
+            |ty| quote! { let mut #name: Vec<#ty> = vec![]; },
+        )
     });
 
     let names = fields.clone().map(|(name, _)| {
