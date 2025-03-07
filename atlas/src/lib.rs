@@ -8,6 +8,7 @@ use sqlx::{
     FromRow, Pool, Postgres, Row,
 };
 use wkb::reader::read_wkb;
+use std::fmt::Write;
 
 type Bbox<T> = ((T, T), (T, T));
 
@@ -103,9 +104,12 @@ pub async fn box_query_without(
         _ => {
             let not_in = without
                 .iter()
-                // .fold("", |acc,x| format!("{acc},{x},"));
-                .map(|id| format!("{},", id))
-                .collect::<String>();
+                .fold(String::new(), |mut acc,id| {
+                    let _ = write!(acc, "{id},");
+                    acc
+                });
+                // .map(|id| format!("{},", id))
+                // .collect::<String>();
             let not_in = &not_in[0..not_in.len() - 1];
             format!("where id not in ({not_in})")
         }
