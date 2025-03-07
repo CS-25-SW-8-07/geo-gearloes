@@ -89,7 +89,7 @@ pub async fn box_query(
 ///
 /// # Errors
 ///
-/// This function will return an error if .
+/// This function will return an error if there are connection issues with the database.
 pub async fn box_query_without(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
