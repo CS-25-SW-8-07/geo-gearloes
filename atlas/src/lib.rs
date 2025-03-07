@@ -82,7 +82,7 @@ pub async fn box_query(
     bbox: Bbox<f64>,
     limit: Option<u32>,
 ) -> Result<Vec<rusty_roads::Road>, sqlx::Error> {
-    box_query_without(conn, bbox, &[], limit).await
+    box_query_exclude_by_id(conn, bbox, &[], limit).await
 }
 
 /// Like [`box_query`], but allows excluding certain roads by id.
@@ -90,7 +90,7 @@ pub async fn box_query(
 /// # Errors
 ///
 /// This function will return an error if there are connection issues with the database.
-pub async fn box_query_without(
+pub async fn box_query_exclude_by_id(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
     without: &[usize],
@@ -224,7 +224,7 @@ mod tests {
                 .acquire()
                 .await
                 .expect("failed to establish database connection, perhaps it is closed");
-            let res = box_query_without(conn, *BBOX_CASSIOPEIA, &without, None)
+            let res = box_query_exclude_by_id(conn, *BBOX_CASSIOPEIA, &without, None)
                 .await
                 .expect("failed to execute query");
             assert_eq!(BBOX_CASSIOPEIA_COUNT - without.len(), res.len())
@@ -236,7 +236,7 @@ mod tests {
                 .acquire()
                 .await
                 .expect("failed to establish database connection, perhaps it is closed");
-            let res = box_query_without(conn, *BBOX_CASSIOPEIA, &[], None)
+            let res = box_query_exclude_by_id(conn, *BBOX_CASSIOPEIA, &[], None)
                 .await
                 .expect("failed to execute query");
             assert_eq!(BBOX_CASSIOPEIA_COUNT, res.len())
