@@ -13,7 +13,7 @@ type Bbox<T> = ((T, T), (T, T));
 
 #[derive(sqlx::Type, From)]
 #[sqlx(transparent, no_pg_array)]
-struct MyRoad(Road<f64>);
+struct MyRoad(Road);
 
 #[derive(sqlx::FromRow, From)]
 #[sqlx(transparent)]
@@ -45,8 +45,8 @@ impl FromRow<'_, postgres::PgRow> for MyRoad {
             "F" => Some(Direction::Forward),
             _ => None,
         };
-        let road = Road::<f64> {
-            id: row.try_get::<i32, _>("id")? as usize,
+        let road = Road {
+            id: row.try_get::<i32, _>("id")? as rusty_roads::Id,
             geom: ls,
             osm_id: row.try_get::<i64, _>("osm_id")? as u64,
             code: row.try_get::<i16, _>("code")? as u16,
@@ -80,7 +80,7 @@ pub async fn box_query(
     conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
     limit: Option<u32>,
-) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
+) -> Result<Vec<rusty_roads::Road>, sqlx::Error> {
     box_query_without(conn, bbox, &[], limit).await
 }
 
@@ -94,7 +94,7 @@ pub async fn box_query_without(
     bbox: Bbox<f64>,
     without: &[usize],
     limit: Option<u32>,
-) -> Result<Vec<rusty_roads::Road<f64>>, sqlx::Error> {
+) -> Result<Vec<rusty_roads::Road>, sqlx::Error> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
     let limit = limit.map(|x| format!("limit {x}")).unwrap_or("".into());
 
