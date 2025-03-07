@@ -314,7 +314,7 @@ mod test {
     use geo_types::Coord;
     use rand::{random, random_range};
 
-    use crate::{Id, Roads};
+    use crate::{Id, Road, Roads};
 
     use super::*;
 
