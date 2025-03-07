@@ -3,6 +3,10 @@ use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 use syn::{Data, DeriveInput, Field, Fields, FieldsNamed, Meta, parse_macro_input};
 
+/// A proc macro for implementign the [comms::Parquet] trait.
+/// Make shure all type impl [comms::comms_types::AppendFromColumn]
+/// and [comms::comms_types::ToColumn] and all types results in a
+/// column of the same length.
 #[proc_macro_derive(Parquet, attributes(parquet_type))]
 pub fn parquet(input: TS) -> TS {
     let DeriveInput { ident, data, .. } = parse_macro_input!(input as DeriveInput);
