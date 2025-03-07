@@ -1,3 +1,5 @@
+mod error;
+
 use derive_more::From;
 use geo_traits::to_geo::ToGeoGeometry;
 use geo_types::{Geometry, LineString};
