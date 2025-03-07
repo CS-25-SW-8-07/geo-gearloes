@@ -457,6 +457,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "comms"
+version = "0.1.0"
+dependencies = [
+ "arrow-array",
+ "arrow-schema",
+ "bytes",
+ "comms-macros",
+ "geo-traits",
+ "geo-types",
+ "itertools",
+ "parquet",
+ "rand 0.9.0",
+ "thiserror 2.0.12",
+ "wkb",
+]
+
+[[package]]
+name = "comms-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.99",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1608,9 +1634,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
-version = "3.2.0"
+version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ecf48c7ca261d60b74ab1a7b20da18bede46776b2e55535cb958eb595c5fa7b"
+checksum = "edce586971a4dfaa28950c6f18ed55e0406c1ab88bbce2c6f6293a7aaba73d35"
 dependencies = [
  "toml_edit",
 ]
@@ -1751,6 +1777,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "bytes",
+ "comms",
  "geo-traits",
  "geo-types",
  "itertools",
@@ -2065,6 +2092,16 @@ dependencies = [
  "once_cell",
  "rustix 0.38.44",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "tests"
+version = "0.1.0"
+dependencies = [
+ "comms",
+ "geo-types",
+ "rand 0.9.0",
+ "rusty-roads",
 ]
 
 [[package]]
