@@ -161,7 +161,7 @@ pub struct NameRow {
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Parquet)]
 pub struct Name {
     pub id: Vec<Id>, // Primary key
     pub name: Vec<String>,
@@ -232,6 +232,7 @@ pub struct RefManyRow {
     pub road_id: Id,
     pub ref_id: Id,
 }
+#[derive(Debug, Default, Parquet)]
 pub struct RefMany {
     pub road_id: Vec<Id>, // Composite key 1
     pub ref_id: Vec<Id>,  // Composite key 2
@@ -305,6 +306,7 @@ pub struct RefRow {
     pub reff: String,
 }
 
+#[derive(Debug, Default, Parquet)]
 pub struct Ref {
     pub id: Vec<Id>, // Primary key
     pub reff: Vec<String>,
@@ -378,7 +380,7 @@ pub struct FeatureClassRow {
     pub fclass: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Parquet)]
 pub struct FeatureClass {
     pub code: Vec<u16>, // Primary key
     pub fclass: Vec<String>,

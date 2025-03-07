@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use arrow_array::{
     ArrayRef, ArrowPrimitiveType, BinaryArray, BooleanArray, PrimitiveArray, RecordBatch,
+    StringArray,
     cast::AsArray,
     types::{
         Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
@@ -131,6 +132,13 @@ impl ToParquetType for Vec<LineString> {
     }
 }
 
+impl ToParquetType for Vec<String> {
+    fn to_parquet_type(self) -> Result<ArrayRef, ParquetParseError> {
+        let b_array = StringArray::from(self);
+        Ok(Arc::new(b_array))
+    }
+}
+
 pub trait ToColumn: ToParquetType + Sized {
     fn to_column<S: AsRef<str>>(self, name: S) -> Result<(S, ArrayRef), ParquetParseError> {
         Ok((name, self.to_parquet_type()?))
@@ -220,6 +228,19 @@ impl AppendFromColumn for Vec<LineString> {
 
         self.append(&mut ls);
 
+        Ok(())
+    }
+}
+
+impl AppendFromColumn for Vec<String> {
+    fn append_from_column(
+        &mut self,
+        column_name: &str,
+        record: &RecordBatch,
+    ) -> Result<(), ParquetParseError> {
+        let mut v = vec![];
+        parse_record(column_name, &mut v, record, ArrayRef::as_string::<i32>)?;
+        self.append(&mut v.into_iter().map(String::from).collect_vec());
         Ok(())
     }
 }
