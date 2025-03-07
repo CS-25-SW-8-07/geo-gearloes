@@ -97,7 +97,7 @@ pub async fn box_query_without(
     limit: Option<u32>,
 ) -> Result<Vec<rusty_roads::Road>, sqlx::Error> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let limit = limit.map(|x| format!("limit {x}")).unwrap_or("".into());
+    let limit = limit.map_or("".into(),|x| format!("limit {x}"));
 
     let where_clause = match without.len() {
         0 => "".into(),
