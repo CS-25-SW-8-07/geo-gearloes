@@ -15,7 +15,7 @@ pub enum LocationObfuscationError {
     NoPointsProvided,
 }
 
-pub fn obfuscate_points<T, U, V>(points: T, roads: &V) -> Result<T, LocationObfuscationError>
+pub fn obfuscate_points<T, U, V>(points: T, roads: V) -> Result<T, LocationObfuscationError>
 where
     T: Iterator<Item = U>,
     U: PointDistance + RTreeObject + Clone,
@@ -52,11 +52,13 @@ where
                 .reduce(|acc, x| if acc.1 < x.1 { x } else { acc })
         }).map(|x| x.0);
 
-    points.iter().zip(freq_ids).map(|x| {
-        roads.find_index()
-    })
 
-    todo!()
+
+    Ok(points.zip(freq_ids).map(|(point, id)|
+        roads.nearest_neighbor_road(point, id)
+    ))
+
+
 }
 
 #[cfg(test)]

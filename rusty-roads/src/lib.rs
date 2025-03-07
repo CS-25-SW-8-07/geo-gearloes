@@ -430,7 +430,14 @@ pub trait Deleteable<T> {
 pub trait Queryable<T> {
     fn find_index(&self, key: T) -> Option<usize>;
     fn find_many_indexes(&self, key: &[T]) -> Vec<Option<usize>>;
-    // TODO: Make get_self and get_mut
+    fn get(&self) -> &Self {
+        self
+    }
+
+    fn get_mut(&mut self) -> &mut Self {
+        mut self
+    }
+
 }
 
 pub trait NearestNeighbor<T, U>
@@ -439,4 +446,7 @@ where
     U: RTreeObject + PointDistance,
 {
     fn nearest_neighbor(&self, point: T) -> Option<U>;
+    fn nearest_neighbor_road(self, point: T, id: Id) -> Option<U>;
 }
+
+pub trait
