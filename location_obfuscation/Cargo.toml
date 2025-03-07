@@ -8,6 +8,7 @@ geo-types = { version = "0.7.15", features = ["multithreading", "use-rstar_0_12"
 rayon = "1.10.0"
 rstar = "0.12.2"
 rusty-roads = { path = "../rusty-roads" }
+thiserror = "2"
 
 [lints]
 workspace = true

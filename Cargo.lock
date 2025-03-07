@@ -978,6 +978,7 @@ dependencies = [
  "rayon",
  "rstar",
  "rusty-roads",
+ "thiserror 2.0.12",
 ]
 
 [[package]]

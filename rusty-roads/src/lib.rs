@@ -9,7 +9,7 @@ pub enum Direction {
     Bidirectional,
 }
 
-type Id = usize;
+pub type Id = usize;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RoadKey(pub Id);
@@ -430,5 +430,13 @@ pub trait Deleteable<T> {
 pub trait Queryable<T> {
     fn find_index(&self, key: T) -> Option<usize>;
     fn find_many_indexes(&self, key: &[T]) -> Vec<Option<usize>>;
+    // TODO: Make get_self and get_mut
 }
 
+pub trait NearestNeighbor<T, U>
+where
+    T: RTreeObject + PointDistance,
+    U: RTreeObject + PointDistance,
+{
+    fn nearest_neighbor(&self, point: T) -> Option<U>;
+}
