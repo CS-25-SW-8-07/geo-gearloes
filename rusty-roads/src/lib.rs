@@ -1,8 +1,8 @@
+use comms::Parquet;
 use geo_types::LineString;
 
-pub mod parquet;
 use itertools::Itertools;
-pub use parquet::*;
+
 use thiserror::Error;
 
 #[inline]
@@ -22,15 +22,19 @@ pub enum Direction {
     Bidirectional = 2,
 }
 
-impl TryFrom<u8> for Direction {
-    type Error = OutOfBounds;
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+impl From<u8> for Direction {
+    fn from(value: u8) -> Self {
         match value {
-            0 => Ok(Self::Forward),
-            1 => Ok(Self::Backward),
-            2 => Ok(Self::Bidirectional),
-            _ => Err(OutOfBounds),
+            0 => Self::Forward,
+            1 => Self::Backward,
+            _ => Self::Bidirectional,
         }
+    }
+}
+
+impl From<Direction> for u8 {
+    fn from(value: Direction) -> Self {
+        value as Self
     }
 }
 
@@ -52,12 +56,13 @@ pub struct Road {
     pub tunnel: bool,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Parquet)]
 pub struct Roads {
     pub id: Vec<Id>, // Primary key
     pub geom: Vec<LineString<f64>>,
     pub osm_id: Vec<u64>,
     pub code: Vec<u16>, // Foreign key to FeatureClass
+    #[parquet_type(u8)]
     pub direction: Vec<Direction>,
     pub maxspeed: Vec<u16>,
     pub layer: Vec<i16>,
@@ -156,7 +161,7 @@ pub struct NameRow {
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Parquet)]
 pub struct Name {
     pub id: Vec<Id>, // Primary key
     pub name: Vec<String>,
@@ -227,6 +232,7 @@ pub struct RefManyRow {
     pub road_id: Id,
     pub ref_id: Id,
 }
+#[derive(Debug, Default, Parquet)]
 pub struct RefMany {
     pub road_id: Vec<Id>, // Composite key 1
     pub ref_id: Vec<Id>,  // Composite key 2
@@ -300,6 +306,7 @@ pub struct RefRow {
     pub reff: String,
 }
 
+#[derive(Debug, Default, Parquet)]
 pub struct Ref {
     pub id: Vec<Id>, // Primary key
     pub reff: Vec<String>,
@@ -373,7 +380,7 @@ pub struct FeatureClassRow {
     pub fclass: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Parquet)]
 pub struct FeatureClass {
     pub code: Vec<u16>, // Primary key
     pub fclass: Vec<String>,
