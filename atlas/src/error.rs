@@ -10,7 +10,7 @@ pub enum DbError{
     #[error("expected \"B\", \"F\" or \"T\", got: {0}")]
     DirectionDecode(String),
 
-    #[error("invalid linestring with id: {0}")]
+    #[error("invalid linestring or empty multilinestring with id: {0}")]
     Linestring(u64),
     
 }
