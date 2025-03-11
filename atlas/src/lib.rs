@@ -1,6 +1,7 @@
 mod error;
 
 use derive_more::From;
+use error::DbError;
 use geo_traits::to_geo::ToGeoGeometry;
 use geo_types::{Geometry, LineString};
 use rusty_roads::*;
@@ -9,8 +10,8 @@ use sqlx::{
     postgres::{self, PgPoolOptions},
     FromRow, Pool, Postgres, Row,
 };
-use wkb::reader::read_wkb;
 use std::fmt::Write;
+use wkb::reader::read_wkb;
 
 type Bbox<T> = ((T, T), (T, T));
 
@@ -36,24 +37,29 @@ struct MyFeatureClassRow(FeatureClassRow);
 // hopefully other tables are automatically derivable
 impl FromRow<'_, postgres::PgRow> for MyRoad {
     fn from_row(row: &'_ postgres::PgRow) -> Result<Self, sqlx::Error> {
+        let id = row.try_get::<i32, _>("id")? as rusty_roads::Id;
         let ls = wkb_to_linestring(&row.try_get::<Vec<u8>, _>("geom")?).ok_or(
             sqlx::Error::ColumnDecode {
                 index: "geom".into(),
-                source: Box::new(sqlx::Error::ColumnNotFound("geom".into())),
+                source: Box::new(DbError::Linestring(id)),
             },
         )?;
         let direc = |c: &str| match c {
-            "B" => Some(Direction::Bidirectional),
-            "T" => Some(Direction::Backward),
-            "F" => Some(Direction::Forward),
-            _ => None,
+            "B" => Ok(Direction::Bidirectional),
+            "T" => Ok(Direction::Backward),
+            "F" => Ok(Direction::Forward),
+            e => Err(sqlx::Error::ColumnDecode {
+                index: "oneway".into(),
+                source: Box::new(DbError::DirectionDecode(e.into())),
+            }),
         };
+
         let road = Road {
-            id: row.try_get::<i32, _>("id")? as rusty_roads::Id,
+            id,
             geom: ls,
             osm_id: row.try_get::<i64, _>("osm_id")? as u64,
             code: row.try_get::<i16, _>("code")? as u16,
-            direction: direc(&row.try_get::<String, _>("oneway")?).expect("msg"),
+            direction: direc(&row.try_get::<String, _>("oneway")?)?,
             maxspeed: row.try_get::<i16, _>("maxspeed")? as u16,
             layer: row.try_get::<i16, _>("layer")?,
             bridge: row.try_get::<bool, _>("bridge")?,
@@ -83,7 +89,7 @@ pub async fn box_query(
     conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
     limit: Option<u32>,
-) -> Result<Vec<rusty_roads::Road>, sqlx::Error> {
+) -> Result<Vec<rusty_roads::Road>, DbError> {
     box_query_exclude_by_id(conn, bbox, &[], limit).await
 }
 
@@ -97,19 +103,17 @@ pub async fn box_query_exclude_by_id(
     bbox: Bbox<f64>,
     without: &[usize],
     limit: Option<u32>,
-) -> Result<Vec<rusty_roads::Road>, sqlx::Error> {
+) -> Result<Vec<rusty_roads::Road>, DbError> {
     let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
-    let limit = limit.map_or("".into(),|x| format!("limit {x}"));
+    let limit = limit.map_or("".into(), |x| format!("limit {x}"));
 
     let where_clause = match without.len() {
         0 => "".into(),
         _ => {
-            let not_in = without
-                .iter()
-                .fold(String::new(), |mut acc,id| {
-                    let _ = write!(acc, "{id},");
-                    acc
-                });
+            let not_in = without.iter().fold(String::new(), |mut acc, id| {
+                let _ = write!(acc, "{id},");
+                acc
+            });
             let not_in = &not_in[0..not_in.len() - 1];
             format!("where id not in ({not_in})")
         }
@@ -125,7 +129,8 @@ pub async fn box_query_exclude_by_id(
         .bind(maxx)
         .bind(maxy)
         .fetch_all(&mut *conn)
-        .await?;
+        .await
+        .map_err(DbError::Sqlx)?;
 
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
@@ -167,7 +172,9 @@ mod tests {
         )
     });
     static POOL: LazyLock<Pool<Postgres>> = LazyLock::new(|| {
-        async_std::task::block_on(async { create_pool(&*CONN, Some(CONNCOUNT)).await.expect("msg") })
+        async_std::task::block_on(async {
+            create_pool(&*CONN, Some(CONNCOUNT)).await.expect("msg")
+        })
     });
 
     static BBOX_CASSIOPEIA: LazyLock<Bbox<f64>> = LazyLock::new(|| {
