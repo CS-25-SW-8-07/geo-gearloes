@@ -1,9 +1,8 @@
 //use geo_types::geometry::{LineString, Point};
 //use rayon::prelude::*;
-use geo_types::CoordNum;
 use rstar::primitives::GeomWithData;
-use rstar::{PointDistance, RTree, RTreeObject};
-use rusty_roads::{Id, NearestNeighbor, Roads, Queryable, RoadKey};
+use rstar::{PointDistance, RTreeObject};
+use rusty_roads::{Id, NearestNeighbor, Queryable, RoadKey};
 use std::collections::VecDeque;
 use thiserror::Error;
 
@@ -15,13 +14,13 @@ pub enum LocationObfuscationError {
     NoPointsProvided,
 }
 
-pub fn obfuscate_points<T, U, V>(points: T, roads: V) -> Result<T, LocationObfuscationError>
+pub fn obfuscate_points<T, U, V>(points: T, roads: V) -> Result<(), LocationObfuscationError>
 where
-    T: Iterator<Item = U>,
+    T: Iterator<Item = U> + Clone,
     U: PointDistance + RTreeObject + Clone,
     V: NearestNeighbor<U, GeomWithData<U, Id>> + Queryable<RoadKey>,
 {
-    let mut ids: VecDeque<Id> = points
+    let mut ids: VecDeque<Id> = points.clone()
         .filter_map(|x| roads.nearest_neighbor(x))
         .map(|x| x.data)
         .collect();
@@ -54,10 +53,9 @@ where
 
 
 
-    Ok(points.zip(freq_ids).map(|(point, id)|
-        roads.nearest_neighbor_road(point, id)
-    ))
-
+    Ok(points.zip(freq_ids).filter_map(|(point, id)|
+        roads.nearest_neighbor_road(point, *id)
+    ).collect())
 
 }
 

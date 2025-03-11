@@ -434,10 +434,6 @@ pub trait Queryable<T> {
         self
     }
 
-    fn get_mut(&mut self) -> &mut Self {
-        mut self
-    }
-
 }
 
 pub trait NearestNeighbor<T, U>
@@ -446,7 +442,7 @@ where
     U: RTreeObject + PointDistance,
 {
     fn nearest_neighbor(&self, point: T) -> Option<U>;
-    fn nearest_neighbor_road(self, point: T, id: Id) -> Option<U>;
+    fn nearest_neighbor_road(&self, point: T, id: Id) -> Option<U>;
 }
 
-pub trait
+
