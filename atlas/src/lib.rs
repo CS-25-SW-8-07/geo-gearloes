@@ -138,7 +138,7 @@ pub async fn box_query_exclude_by_id(
 fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
     let a = read_wkb(bytea).ok()?.try_to_geometry()?;
     match a {
-        Geometry::LineString(geom) => Some(geom),
+        Geometry::LineString(geom) => Some(geom), // empty linestringes are still allowed
         Geometry::MultiLineString(geoms) => Some(geoms.0.get(0)?.clone()), // to avoid this, in sql, write st_geomtryn(geom,1)
         _ => None,
     }
