@@ -1,4 +1,4 @@
-use geo_types::geometry::{LineString, Point};
+use geo_types::geometry::{Point};
 //use rayon::prelude::*;
 use rstar::primitives::GeomWithData;
 use rstar::{PointDistance, RTreeObject};

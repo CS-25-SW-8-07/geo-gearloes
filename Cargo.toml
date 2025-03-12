@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = [ "atlas", "location_obfuscation","rusty-roads"]
+members = [ "atlas", "comms", "comms-macros","rusty-roads", "tests", "location_obfuscation"]
 
 [workspace.lints.clippy]
 # all = { level = "deny", priority = 1 }
@@ -11,3 +11,5 @@ perf = {level = "deny", priority = 1}
 unwrap_used= {level = "deny", priority = 1}
 suspicious = "warn"
 todo = "warn"
+map_unwrap_or = {level = "deny", priority = 2}
+# [workspace.lints.clippy.pedantic]

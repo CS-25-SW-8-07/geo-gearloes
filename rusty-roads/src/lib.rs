@@ -1,22 +1,55 @@
-use geo_types::{CoordNum, LineString, Point};
+use geo_types::{LineString, Point};
 use rstar::primitives::GeomWithData;
 use rstar::{PointDistance, RTree, RTreeObject};
+use comms::Parquet;
 
-#[derive(Debug, Clone, Copy)]
-pub enum Direction {
-    Forward,
-    Backward,
-    Bidirectional,
+use itertools::Itertools;
+
+use thiserror::Error;
+
+#[inline]
+pub fn default<T: Default>() -> T {
+    T::default()
 }
 
-pub type Id = usize;
+
+#[derive(Debug, Error)]
+#[error("Value is out of bounds")]
+pub struct OutOfBounds;
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Direction {
+    Forward = 0,
+    Backward = 1,
+    Bidirectional = 2,
+}
+
+impl From<u8> for Direction {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Forward,
+            1 => Self::Backward,
+            _ => Self::Bidirectional,
+        }
+    }
+}
+
+impl From<Direction> for u8 {
+    fn from(value: Direction) -> Self {
+        value as Self
+    }
+}
+
+pub type Id = u64;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RoadKey(pub Id);
 
-pub struct Road<T: CoordNum> {
+#[derive(Debug, Clone)]
+pub struct Road {
     pub id: Id,
-    pub geom: LineString<T>,
+    pub geom: LineString<f64>,
     pub osm_id: u64,
     pub code: u16,
     pub direction: Direction,
@@ -26,12 +59,14 @@ pub struct Road<T: CoordNum> {
     pub tunnel: bool,
 }
 
-pub struct Roads<T: CoordNum + RTreeObject + PointDistance + Clone> {
-    pub rtree: RoadIndex<T>,
+
+#[derive(Debug, Default, Clone, Parquet)]
+pub struct Roads {
     pub id: Vec<Id>, // Primary key
-    pub geom: Vec<LineString<T>>,
+    pub geom: Vec<LineString<f64>>,
     pub osm_id: Vec<u64>,
     pub code: Vec<u16>, // Foreign key to FeatureClass
+    #[parquet_type(u8)]
     pub direction: Vec<Direction>,
     pub maxspeed: Vec<u16>,
     pub layer: Vec<i16>,
@@ -39,37 +74,37 @@ pub struct Roads<T: CoordNum + RTreeObject + PointDistance + Clone> {
     pub tunnel: Vec<bool>,
 }
 
-
-pub struct RoadIndex<T: RTreeObject + PointDistance + Clone> {
-    pub index: RTree<GeomWithData<T, u64>>,
+#[derive(Debug, Clone)]
+pub struct RoadIndex {
+    pub index: RTree<GeomWithData<LineString<f64>, u64>>,
 }
 
-impl<T: RTreeObject + PointDistance + Clone> RoadIndex<T> {
-    pub fn new() -> RoadIndex<T> {
+impl RoadIndex {
+    pub fn new() -> RoadIndex {
         Self {
             index: RTree::new(),
         }
     }
 
-    pub fn from(ids: &[u64], roads: &[T]) -> RoadIndex<T> {
-        let geomdata: Vec<GeomWithData<T, u64>> = roads
+    pub fn from(ids: &[u64], roads: &[LineString<f64>]) -> RoadIndex {
+        let geomdata: Vec<GeomWithData<LineString<f64>, u64>> = roads
             .iter()
             .zip(ids.iter())
-            .map(|(road, id)| GeomWithData::<T, u64>::new(road.clone(), *id))
+            .map(|(road, id)| GeomWithData::<LineString<f64>, u64>::new(road.clone(), *id))
             .collect();
 
-        RoadIndex::<T> {
-            index: RTree::<GeomWithData<T, u64>>::bulk_load(geomdata),
+        RoadIndex {
+            index: RTree::<GeomWithData<LineString<f64>, u64>>::bulk_load(geomdata),
         }
     }
 
-    pub fn insert(&mut self, id: u64, road: T) {
-        let geomdata: GeomWithData<T, u64> = GeomWithData::new(road, id);
+    pub fn insert(&mut self, id: u64, road: LineString<f64>) {
+        let geomdata: GeomWithData<LineString<f64>, u64> = GeomWithData::new(road, id);
         self.index.insert(geomdata);
     }
 
     pub fn empty(&mut self) {
-        self.index = RTree::<GeomWithData<T, u64>>::new();
+        self.index = RTree::<GeomWithData<LineString<f64>, u64>>::new();
     }
 
     pub fn remove(&mut self, _id: u64) {
@@ -77,7 +112,7 @@ impl<T: RTreeObject + PointDistance + Clone> RoadIndex<T> {
     }
 }
 
-impl<T: RTreeObject + PointDistance + Clone> Default for RoadIndex<T> {
+impl Default for RoadIndex {
     fn default() -> Self {
         Self::new()
     }
@@ -85,12 +120,17 @@ impl<T: RTreeObject + PointDistance + Clone> Default for RoadIndex<T> {
 
 
 
-impl<T: CoordNum + rstar::Point> Insertable<Road<T>> for Roads<T> {
+impl Insertable<Road> for Roads {
     type Key = RoadKey;
 
-    fn insert(&mut self, data: &Road<T>) -> Self::Key {
+    fn insert(&mut self, data: &Road) -> Self::Key {
         // Does not insert duplicates
-        if let Some((id, _)) = self.id.iter().zip(self.osm_id.iter()).find(|(&_, &o)| data.osm_id == o) {
+        if let Some((id, _)) = self
+            .id
+            .iter()
+            .zip(self.osm_id.iter())
+            .find(|(&_, &o)| data.osm_id == o)
+        {
             return RoadKey(*id);
         }
 
@@ -100,8 +140,6 @@ impl<T: CoordNum + rstar::Point> Insertable<Road<T>> for Roads<T> {
         } else {
             0
         };
-
-
 
         self.id.push(next_id);
         self.geom.push(data.geom.clone());
@@ -116,12 +154,12 @@ impl<T: CoordNum + rstar::Point> Insertable<Road<T>> for Roads<T> {
         RoadKey(next_id)
     }
 
-    fn insert_many(&mut self, data: &[Road<T>]) -> Vec<Self::Key> {
+    fn insert_many(&mut self, data: &[Road]) -> Vec<Self::Key> {
         data.iter().map(|x| self.insert(x)).collect()
     }
 }
 
-impl<T: CoordNum + rstar::Point> Queryable<RoadKey> for Roads<T> {
+impl Queryable<RoadKey> for Roads {
     fn find_index(&self, key: RoadKey) -> Option<usize> {
         self.id.iter().position(|&x| x == key.0)
     }
@@ -131,8 +169,8 @@ impl<T: CoordNum + rstar::Point> Queryable<RoadKey> for Roads<T> {
     }
 }
 
-impl<T: CoordNum + rstar::Point> Deleteable<RoadKey> for Roads<T> {
-    type Output = Road<T>;
+impl Deleteable<RoadKey> for Roads {
+    type Output = Road;
     fn delete(&mut self, key: RoadKey) -> Option<Self::Output> {
         if let Some(index) = self.id.iter().position(|&x| x == key.0) {
             Some(Self::Output {
@@ -156,14 +194,24 @@ impl<T: CoordNum + rstar::Point> Deleteable<RoadKey> for Roads<T> {
     }
 }
 
+impl FromIterator<Road> for Roads {
+    fn from_iter<T: IntoIterator<Item = Road>>(iter: T) -> Self {
+        let mut slf: Self = default();
+        slf.insert_many(&iter.into_iter().collect_vec());
+        slf
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct NameKey(pub Id);
 
+#[derive(Debug)]
 pub struct NameRow {
     pub id: Id,
     pub name: String,
 }
 
+#[derive(Debug, Default, Parquet)]
 pub struct Name {
     pub id: Vec<Id>, // Primary key
     pub name: Vec<String>,
@@ -173,7 +221,12 @@ impl Insertable<NameRow> for Name {
     type Key = NameKey;
 
     fn insert(&mut self, data: &NameRow) -> Self::Key {
-        if let Some((id, _)) = self.id.iter().zip(self.name.iter()).find(|(&_, n)| data.name == **n) {
+        if let Some((id, _)) = self
+            .id
+            .iter()
+            .zip(self.name.iter())
+            .find(|(&_, n)| data.name == **n)
+        {
             return NameKey(*id);
         }
 
@@ -225,10 +278,11 @@ impl Deleteable<NameKey> for Name {
 
 #[derive(Debug, Clone, Copy)]
 pub struct RefManyKey(pub RoadKey, pub RefKey);
-pub struct RefManyRow{
+pub struct RefManyRow {
     pub road_id: Id,
     pub ref_id: Id,
 }
+#[derive(Debug, Default, Parquet)]
 pub struct RefMany {
     pub road_id: Vec<Id>, // Composite key 1
     pub ref_id: Vec<Id>,  // Composite key 2
@@ -238,7 +292,12 @@ impl Insertable<RefManyRow> for RefMany {
     type Key = RefManyKey;
 
     fn insert(&mut self, data: &RefManyRow) -> Self::Key {
-        if let Some((road_id, ref_id)) = self.road_id.iter().zip(self.ref_id.iter()).find(|(&ro, &re)| data.road_id == ro && data.ref_id == re) {
+        if let Some((road_id, ref_id)) = self
+            .road_id
+            .iter()
+            .zip(self.ref_id.iter())
+            .find(|(&ro, &re)| data.road_id == ro && data.ref_id == re)
+        {
             return RefManyKey(RoadKey(*road_id), RefKey(*ref_id));
         }
 
@@ -257,7 +316,12 @@ impl Deleteable<RefManyKey> for RefMany {
     type Output = RefManyRow;
 
     fn delete(&mut self, key: RefManyKey) -> Option<Self::Output> {
-        if let Some(index) = self.road_id.iter().zip(self.ref_id.iter()).position(|(&ro, &re)| key.0.0 == ro && key.1.0 == re) {
+        if let Some(index) = self
+            .road_id
+            .iter()
+            .zip(self.ref_id.iter())
+            .position(|(&ro, &re)| key.0 .0 == ro && key.1 .0 == re)
+        {
             Some(Self::Output {
                 road_id: self.road_id.remove(index),
                 ref_id: self.ref_id.remove(index),
@@ -274,14 +338,16 @@ impl Deleteable<RefManyKey> for RefMany {
 
 impl Queryable<RefManyKey> for RefMany {
     fn find_index(&self, key: RefManyKey) -> Option<usize> {
-        self.road_id.iter().zip(self.ref_id.iter()).position(|(&ro, &re)| key.0.0 == ro && key.1.0 == re)
+        self.road_id
+            .iter()
+            .zip(self.ref_id.iter())
+            .position(|(&ro, &re)| key.0 .0 == ro && key.1 .0 == re)
     }
 
     fn find_many_indexes(&self, key: &[RefManyKey]) -> Vec<Option<usize>> {
         key.iter().map(|x| self.find_index(*x)).collect()
     }
 }
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct RefKey(pub Id);
@@ -290,6 +356,7 @@ pub struct RefRow {
     pub reff: String,
 }
 
+#[derive(Debug, Default, Parquet)]
 pub struct Ref {
     pub id: Vec<Id>, // Primary key
     pub reff: Vec<String>,
@@ -299,7 +366,12 @@ impl Insertable<RefRow> for Ref {
     type Key = RefKey;
 
     fn insert(&mut self, data: &RefRow) -> Self::Key {
-        if let Some((id, _)) = self.id.iter().zip(self.reff.iter()).find(|(&_, r)| data.reff == **r) {
+        if let Some((id, _)) = self
+            .id
+            .iter()
+            .zip(self.reff.iter())
+            .find(|(&_, r)| data.reff == **r)
+        {
             return RefKey(*id);
         }
 
@@ -349,15 +421,16 @@ impl Deleteable<RefKey> for Ref {
     }
 }
 
-
 #[derive(Debug, Clone, Copy)]
 pub struct FeatureClassKey(pub u16);
 
+#[derive(Debug)]
 pub struct FeatureClassRow {
     pub code: u16, // Primary key
     pub fclass: String,
 }
 
+#[derive(Debug, Default, Parquet)]
 pub struct FeatureClass {
     pub code: Vec<u16>, // Primary key
     pub fclass: Vec<String>,
@@ -367,13 +440,17 @@ impl Insertable<FeatureClassRow> for FeatureClass {
     type Key = FeatureClassKey;
 
     fn insert(&mut self, data: &FeatureClassRow) -> Self::Key {
-        if let Some((code, _)) = self.code.iter().zip(self.fclass.iter()).find(|(&_, o)| data.fclass == **o) {
+        if let Some((code, _)) = self
+            .code
+            .iter()
+            .zip(self.fclass.iter())
+            .find(|(&_, o)| data.fclass == **o)
+        {
             return FeatureClassKey(*code);
         }
 
         self.code.push(data.code);
         self.fclass.push(data.fclass.clone());
-
 
         FeatureClassKey(data.code)
     }
@@ -412,9 +489,6 @@ impl Queryable<FeatureClassKey> for FeatureClass {
     }
 }
 
-
-
-
 pub trait Insertable<T> {
     type Key;
     fn insert(&mut self, data: &T) -> Self::Key;
@@ -444,5 +518,4 @@ where
     fn nearest_neighbor(&self, point: T) -> Option<U>;
     fn nearest_neighbor_road(&self, point: T, id: Id) -> Option<Point>;
 }
-
 
