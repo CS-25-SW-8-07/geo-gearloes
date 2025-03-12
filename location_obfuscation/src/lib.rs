@@ -1,4 +1,4 @@
-//use geo_types::geometry::{LineString, Point};
+use geo_types::geometry::{LineString, Point};
 //use rayon::prelude::*;
 use rstar::primitives::GeomWithData;
 use rstar::{PointDistance, RTreeObject};
@@ -14,7 +14,7 @@ pub enum LocationObfuscationError {
     NoPointsProvided,
 }
 
-pub fn obfuscate_points<T, U, V>(points: T, roads: V) -> Result<(), LocationObfuscationError>
+pub fn obfuscate_points<T, U, V>(points: T, roads: V) -> Result<Vec<Point>, LocationObfuscationError>
 where
     T: Iterator<Item = U> + Clone,
     U: PointDistance + RTreeObject + Clone,
@@ -56,7 +56,6 @@ where
     Ok(points.zip(freq_ids).filter_map(|(point, id)|
         roads.nearest_neighbor_road(point, *id)
     ).collect())
-
 }
 
 #[cfg(test)]

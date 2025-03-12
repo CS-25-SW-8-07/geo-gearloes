@@ -1,4 +1,4 @@
-use geo_types::{CoordNum, LineString};
+use geo_types::{CoordNum, LineString, Point};
 use rstar::primitives::GeomWithData;
 use rstar::{PointDistance, RTree, RTreeObject};
 
@@ -442,7 +442,7 @@ where
     U: RTreeObject + PointDistance,
 {
     fn nearest_neighbor(&self, point: T) -> Option<U>;
-    fn nearest_neighbor_road(&self, point: T, id: Id) -> Option<U>;
+    fn nearest_neighbor_road(&self, point: T, id: Id) -> Option<Point>;
 }
 
 
