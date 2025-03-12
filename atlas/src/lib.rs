@@ -13,6 +13,8 @@ use sqlx::{
 use std::fmt::Write;
 use wkb::reader::read_wkb;
 
+pub mod join_table;
+
 type Bbox<T> = ((T, T), (T, T));
 
 #[derive(sqlx::Type, From)]
