@@ -8,6 +8,8 @@ use thiserror::Error;
 
 const WINDOW_SIZE: usize = 5; // Must be an odd number.
 
+const _: () = assert!(WINDOW_SIZE%2==1,"`WINDOW_SIZE` must be odd");
+
 #[derive(Error, Debug)]
 pub enum LocationObfuscationError {
     #[error("Cannot do obfuscation when no points are provided")]
@@ -25,17 +27,9 @@ where
         .map(|x| x.data)
         .collect();
 
-    let first = if let Some(element) = ids.front() {
-        *element
-    } else {
-        return Err(LocationObfuscationError::NoPointsProvided);
-    };
 
-    let last = if let Some(element) = ids.back() {
-        *element
-    } else {
-        return Err(LocationObfuscationError::NoPointsProvided);
-    };
+    let first = *ids.front().ok_or(LocationObfuscationError::NoPointsProvided)?;
+    let last = *ids.back().ok_or(LocationObfuscationError::NoPointsProvided)?;
 
     for _ in 0..WINDOW_SIZE / 2 {
         ids.push_front(first);
@@ -58,12 +52,8 @@ where
     ).collect())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn test_window_size_odd() {
-        assert_eq!(WINDOW_SIZE % 2, 1);
-    }
-}
+// }
