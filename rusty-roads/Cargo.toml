@@ -7,8 +7,6 @@ edition = "2021"
 
 [dependencies]
 comms = { version = "0.1.0", path = "../comms" }
-arrow-array = "54.2.0"
-arrow-schema = "54.2.0"
 bytes = "1.10.0"
 geo-traits = "0.2.0"
 geo-types = "0.7.15"
