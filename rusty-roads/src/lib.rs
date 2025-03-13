@@ -1,7 +1,7 @@
+use comms::Parquet;
 use geo_types::{LineString, Point};
 use rstar::primitives::GeomWithData;
 use rstar::{PointDistance, RTree, RTreeObject};
-use comms::Parquet;
 
 use itertools::Itertools;
 
@@ -11,7 +11,6 @@ use thiserror::Error;
 pub fn default<T: Default>() -> T {
     T::default()
 }
-
 
 #[derive(Debug, Error)]
 #[error("Value is out of bounds")]
@@ -58,7 +57,6 @@ pub struct Road {
     pub bridge: bool,
     pub tunnel: bool,
 }
-
 
 #[derive(Debug, Default, Clone, Parquet)]
 pub struct Roads {
@@ -117,8 +115,6 @@ impl Default for RoadIndex {
         Self::new()
     }
 }
-
-
 
 impl Insertable<Road> for Roads {
     type Key = RoadKey;
@@ -507,7 +503,6 @@ pub trait Queryable<T> {
     fn get(&self) -> &Self {
         self
     }
-
 }
 
 pub trait NearestNeighbor<T, U>
@@ -515,7 +510,6 @@ where
     T: RTreeObject + PointDistance,
     U: RTreeObject + PointDistance,
 {
-    fn nearest_neighbor(&self, point: T) -> Option<U>;
+    fn nearest_neighbor(&self, point: T) -> Option<GeomWithData<U, Id>>;
     fn nearest_neighbor_road(&self, point: T, id: Id) -> Option<Point>;
 }
-
