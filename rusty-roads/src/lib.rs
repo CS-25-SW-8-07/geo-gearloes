@@ -1,5 +1,7 @@
 use comms::Parquet;
-use geo_types::LineString;
+use geo_types::{LineString, Point};
+use rstar::primitives::GeomWithData;
+use rstar::{PointDistance, RTree, RTreeObject};
 
 use itertools::Itertools;
 
@@ -68,6 +70,50 @@ pub struct Roads {
     pub layer: Vec<i16>,
     pub bridge: Vec<bool>,
     pub tunnel: Vec<bool>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RoadIndex {
+    pub index: RTree<GeomWithData<LineString<f64>, u64>>,
+}
+
+impl RoadIndex {
+    pub fn new() -> RoadIndex {
+        Self {
+            index: RTree::new(),
+        }
+    }
+
+    pub fn from(ids: &[u64], roads: &[LineString<f64>]) -> RoadIndex {
+        let geomdata: Vec<GeomWithData<LineString<f64>, u64>> = roads
+            .iter()
+            .zip(ids.iter())
+            .map(|(road, id)| GeomWithData::<LineString<f64>, u64>::new(road.clone(), *id))
+            .collect();
+
+        RoadIndex {
+            index: RTree::<GeomWithData<LineString<f64>, u64>>::bulk_load(geomdata),
+        }
+    }
+
+    pub fn insert(&mut self, id: u64, road: LineString<f64>) {
+        let geomdata: GeomWithData<LineString<f64>, u64> = GeomWithData::new(road, id);
+        self.index.insert(geomdata);
+    }
+
+    pub fn empty(&mut self) {
+        self.index = RTree::<GeomWithData<LineString<f64>, u64>>::new();
+    }
+
+    pub fn remove(&mut self, _id: u64) {
+        todo!()
+    }
+}
+
+impl Default for RoadIndex {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Insertable<Road> for Roads {
@@ -454,4 +500,16 @@ pub trait Deleteable<T> {
 pub trait Queryable<T> {
     fn find_index(&self, key: T) -> Option<usize>;
     fn find_many_indexes(&self, key: &[T]) -> Vec<Option<usize>>;
+    fn get(&self) -> &Self {
+        self
+    }
+}
+
+pub trait NearestNeighbor<T, U>
+where
+    T: RTreeObject + PointDistance,
+    U: RTreeObject + PointDistance,
+{
+    fn nearest_neighbor(&self, point: T) -> Option<GeomWithData<U, Id>>;
+    fn nearest_neighbor_road(&self, point: T, id: Id) -> Option<Point>;
 }
