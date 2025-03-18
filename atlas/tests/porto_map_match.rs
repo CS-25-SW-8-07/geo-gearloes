@@ -1,5 +1,7 @@
-// #![cfg_attr(test)]
 #![cfg(test)]
+#![allow(dead_code)]
+
+// #![cfg_attr(test)]
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::{borrow::Cow, collections::HashSet};
@@ -10,7 +12,8 @@ use rusty_roads::{Id, NearestNeighbor};
 use sqlx::Pool;
 use sqlx::{pool::PoolConnection, Postgres};
 
-use crate::wkb_to_linestring;
+// use crate::wkb_to_linestring;
+use ::atlas::wkb_to_linestring;
 use location_obfuscation::*;
 
 type Trajectory = (i32, LineString);
@@ -68,14 +71,17 @@ impl NearestNeighbor<Point, LineString<f64>> for Roads {
     }
 }
 
-pub async fn map_match_porto<T, F>(pool: Pool<Postgres>, f: F) -> Result<T, sqlx::Error>
+pub async fn map_match_porto(
+    pool: Pool<Postgres>,
+    roadnetwork: &Roads,
+    porto_pool: Pool<Postgres>,
+) -> Result<(), sqlx::Error>
 where
-    F: Fn(&[Trajectory]) -> T,
 {
     const CHUNK_SIZE: i32 = 100000;
     const _: () = assert!(CHUNK_SIZE > 0);
     let ids: Vec<(i32,(/*sqlx be trolling */))> = sqlx::query_as("select id from taxadata;")
-        .fetch_all(&pool)
+        .fetch_all(&porto_pool)
         .await?;
 
     let ko = ids.into_iter().map(|e| e.0);
@@ -100,7 +106,14 @@ where
             .copied()
             .collect();
         received.extend(ids.iter().copied().zip(trajs.clone().into_iter()));
-        let res = f(&ids.iter().copied().zip(trajs).collect::<Vec<Trajectory>>());
+        let matched = map_match(
+            &ids.iter().copied().zip(trajs).collect::<Vec<Trajectory>>(),
+            roadnetwork,
+        );
+        let _ = insert_matched_trajectories(porto_pool.acquire().await.unwrap(), &matched)
+            .await
+            .expect("failed to insert matched trajectories");
+        // let res = f(&ids.iter().copied().zip(trajs).collect::<Vec<Trajectory>>());
     }
 
     todo!()
@@ -110,18 +123,25 @@ async fn insert_matched_trajectories(
     mut conn: PoolConnection<Postgres>,
     trajs: &[Trajectory],
 ) -> Result<(), sqlx::Error> {
-    let (ids,trajs): (Vec<i32>, Vec<Vec<u8>>) = trajs.into_iter().filter_map(|(id, ls)| {
-        let mut buffer: Vec<u8> = vec![];
-        let a =
-            wkb::writer::write_line_string(&mut buffer, ls, wkb::Endianness::LittleEndian).ok()?;
-        Some((*id, buffer))
-    }).unzip();
+    let (ids, trajs): (Vec<i32>, Vec<Vec<u8>>) = trajs
+        .into_iter()
+        .filter_map(|(id, ls)| {
+            let mut buffer: Vec<u8> = vec![];
+            let a = wkb::writer::write_line_string(&mut buffer, ls, wkb::Endianness::LittleEndian)
+                .ok()?;
+            Some((*id, buffer))
+        })
+        .unzip();
     let sql = format!("insert into matched_taxa values ($1, $2)");
-    let insert: () = sqlx::query_as(&sql).bind(ids).bind(trajs).fetch_one(&mut *conn).await?;
+    let insert: () = sqlx::query_as(&sql)
+        .bind(ids)
+        .bind(trajs)
+        .fetch_one(&mut *conn)
+        .await?;
     Ok(insert) //TIHI
 }
 
-fn map_match(trajs: &[Trajectory], roadnetwork: Roads) -> Vec<Trajectory> {
+fn map_match(trajs: &[Trajectory], roadnetwork: &Roads) -> Vec<Trajectory> {
     let matched = trajs
         .iter()
         .filter_map(|(id, traj)| {
@@ -167,4 +187,102 @@ async fn get_trajectories(
         })
         .collect();
     Ok(trajectories)
+}
+
+mod tests {
+
+    // use atlas::porto::map_match_porto;
+
+    use ::atlas::*;
+    // use crate::porto::*;
+    use dotenvy::dotenv;
+    use geo_types::LineString;
+    use sqlx::{Pool, Postgres};
+    use std::env;
+    use std::sync::LazyLock;
+
+    use crate::{insert_matched_trajectories, map_match, map_match_porto, Roads, Trajectory};
+    const CONNCOUNT: u32 = 100;
+    // these variables are such that environment variables are only loaded once when running test suite
+    static USERNAME: LazyLock<String> = LazyLock::new(|| {
+        env::var("DB_USERNAME").expect("`DB_USERNAME` environment variable should be set")
+    });
+    static PASSWORD: LazyLock<String> = LazyLock::new(|| {
+        env::var("DB_PASSWORD").expect("`DB_PASSWORD` environment variable should be set")
+    });
+    static ADDRESS: LazyLock<String> = LazyLock::new(|| {
+        env::var("DB_ADDRESS").expect("`DB_ADDRESS` environment variable should be set")
+    });
+    static DBNAME: LazyLock<String> = LazyLock::new(|| {
+        env::var("DB_NAME").expect("`DB_NAME` environment variable should be set")
+    });
+    static CONN: LazyLock<String> = LazyLock::new(|| {
+        dotenv().expect("failed to read environment variables");
+        format!(
+            "postgres://{}:{}@{}/{}",
+            &*USERNAME, &*PASSWORD, &*ADDRESS, &*DBNAME
+        )
+    });
+    static POOL: LazyLock<Pool<Postgres>> = LazyLock::new(|| {
+        async_std::task::block_on(async {
+            create_pool(&*CONN, Some(CONNCOUNT)).await.expect("msg")
+        })
+    });
+
+    static BBOX_CASSIOPEIA: LazyLock<Bbox<f64>> = LazyLock::new(|| {
+        (
+            (9.989492935608991, 57.009828137476511),
+            (9.995526228694693, 57.013236271456691),
+        )
+    });
+    const BBOX_CASSIOPEIA_COUNT: usize = 79;
+
+    #[async_std::test]
+    async fn match_test() {
+        const PORTUGAL: Bbox<f64> = ((-9.8282947, 42.461873), (-6.4709611, 36.4666192));
+        const PORTUGAL_ROAD_COUNT: i32 = 1_362_233;
+
+        dotenv().unwrap();
+        let username = env::var("DB_PROGRAMUSER").unwrap();
+        let db_password = env::var("DB_PROGRAMPASSWORD").unwrap();
+        let porto_db = env::var("DB_TAXA").unwrap();
+        let porto_conn = format!(
+            "postgres:/{}:{}@{}/{}",
+            &username, &db_password, &*ADDRESS, &porto_db
+        );
+        
+        let porto_conn = create_pool(&porto_conn, Some(100)).await.expect("msg");
+
+        let conn = (*POOL)
+            .acquire()
+            .await
+            .expect("failed to establish database conenction");
+        let roads = box_query(conn, PORTUGAL, Some(PORTUGAL_ROAD_COUNT as u32))
+            .await
+            .expect("failed to get portugese roads"); // can take ~25 seconds
+
+        debug_assert_eq!(
+            roads.len() as i32,
+            PORTUGAL_ROAD_COUNT,
+            "expected {PORTUGAL_ROAD_COUNT} roads, got {}",
+            roads.len()
+        );
+        let road_network: (Vec<_>, Vec<_>) = roads.into_iter().map(|r| (r.id, r.geom)).unzip();
+        let road_network = Roads {
+            ids: road_network.0,
+            roads: road_network.1,
+        };
+        map_match_porto((*POOL).clone(), &road_network, porto_conn)
+            .await
+            .expect("asdaa");
+        // let connn = (*POOL).acquire().await.unwrap();
+        // let f = async |t: &[Trajectory]| {
+        //     let a = map_match(t, &road_network);
+        //     let b = insert_matched_trajectories((*POOL).try_acquire().unwrap(), &a)
+        //         .await
+        //         .unwrap();
+        //     // todo!();
+        // };
+        // let _ = map_match_porto(POOL.clone(), f);
+    }
 }

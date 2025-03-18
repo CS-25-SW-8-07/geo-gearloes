@@ -26,3 +26,5 @@ workspace = true
 [dev-dependencies]
 dotenvy = "0.15.7"
 dotenvy_macro = "0.15.7"
+location_obfuscation = {path = "../location_obfuscation"}
+rstar = "0.12.2"

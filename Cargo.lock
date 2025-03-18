@@ -322,6 +322,8 @@ dependencies = [
  "dotenvy_macro",
  "geo-traits",
  "geo-types",
+ "location_obfuscation",
+ "rstar",
  "rusty-roads",
  "sqlx",
  "thiserror 2.0.12",

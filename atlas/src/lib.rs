@@ -1,5 +1,5 @@
 mod error;
-mod porto;
+pub mod porto;
 
 use derive_more::From;
 use error::DbError;
@@ -14,7 +14,7 @@ use sqlx::{
 use std::fmt::Write;
 use wkb::reader::read_wkb;
 
-type Bbox<T> = ((T, T), (T, T));
+pub type Bbox<T> = ((T, T), (T, T));
 
 #[derive(sqlx::Type, From)]
 #[sqlx(transparent, no_pg_array)]
@@ -136,7 +136,7 @@ pub async fn box_query_exclude_by_id(
     Ok(res.into_iter().map(|x| x.0).collect::<Vec<_>>())
 }
 
-fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
+pub fn wkb_to_linestring(bytea: &[u8]) -> Option<LineString<f64>> {
     let a = read_wkb(bytea).ok()?.try_to_geometry()?;
     match a {
         Geometry::LineString(geom) => Some(geom), // empty linestringes are still allowed
