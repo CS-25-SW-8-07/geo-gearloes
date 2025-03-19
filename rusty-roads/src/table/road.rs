@@ -34,28 +34,46 @@ pub struct RoadKey(pub Id);
 
 #[derive(Debug, Clone)]
 pub struct Road {
+    /// Primary Key
     pub id: Id,
+    /// Shape of the road
     pub geom: LineString<f64>,
+    /// Open Streetmap Id
     pub osm_id: u64,
+    /// Foregin Key to [`FeatureClass`]
     pub code: u16,
+    /// Direction of road
     pub direction: Direction,
+    /// Maxspeed in kmph
     pub maxspeed: u16,
+    /// layer of road -2..=2
     pub layer: i16,
+    /// Is a bridge
     pub bridge: bool,
+    /// Is a tunnel
     pub tunnel: bool,
 }
 
 #[derive(Debug, Default, Clone, Parquet)]
 pub struct Roads {
-    pub id: Vec<Id>, // Primary key
+    /// Primary keys
+    pub id: Vec<Id>,
+    /// Shape of the roads
     pub geom: Vec<LineString<f64>>,
+    /// Open Streetmap Ids
     pub osm_id: Vec<u64>,
-    pub code: Vec<u16>, // Foreign key to FeatureClass
+    /// Foreign key to [`FeatureClass`]
+    pub code: Vec<u16>,
+    /// The direction of the roads
     #[parquet_type(u8)]
     pub direction: Vec<Direction>,
+    /// The maxspeed of the query
     pub maxspeed: Vec<u16>,
+    /// The layers of the road
     pub layer: Vec<i16>,
+    /// Is the road a bridge
     pub bridge: Vec<bool>,
+    /// Is the road a tunnel
     pub tunnel: Vec<bool>,
 }
 
