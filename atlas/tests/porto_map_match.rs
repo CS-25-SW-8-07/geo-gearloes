@@ -97,15 +97,12 @@ where
     let ids: Vec<(i32,)> = sqlx::query_as("select id from taxadata;")
         .fetch_all(&porto_pool)
         .await?;
-    let ko = ids.into_iter().map(|e| e.0);
-    // let ids: HashSet<i32> = HashSet::from_iter(ids.into_iter().map(|e| e.0));
-    let mut received = HashMap::<i32, LineString>::with_capacity(ko.len());
-    let all_ids: HashSet<i32> = HashSet::from_iter(ko);
-    let mut keys: HashSet<i32> = HashSet::with_capacity(all_ids.len());
-    // let mut ids_copy: Vec<i32> = Vec::with_capacity(CHUNK_SIZE as usize);
+    let ids = ids.into_iter().map(|e| e.0);
 
-    // keep fetching chunks until every trajectory has been fetched
-    // println!("entering loop");
+    let mut received = HashMap::<i32, LineString>::with_capacity(ids.len());
+    let all_ids: HashSet<i32> = HashSet::from_iter(ids);
+    let mut keys: HashSet<i32> = HashSet::with_capacity(all_ids.len());
+
     while all_ids != keys {
         let (ids, trajs): (Vec<i32>, Vec<LineString>) = get_trajectories(
             porto_pool.acquire().await?,
@@ -115,9 +112,7 @@ where
         .await?
         .into_iter()
         .unzip();
-        // ids_copy = ids.clone();
-        // let ress = get_trajectories(pool.acquire().await?, CHUNK_SIZE, None)
-        //     .await?;
+
         keys = keys
             .union(&HashSet::from_iter(ids.iter().copied()))
             .copied()
@@ -127,14 +122,12 @@ where
             &ids.iter().copied().zip(trajs).collect::<Vec<Trajectory>>(),
             roadnetwork,
         );
-        // println!("pre insert");
+
         let _ = insert_matched_trajectories(porto_pool.acquire().await.unwrap(), &matched)
             .await
             .expect("failed to insert matched trajectories");
-        // println!("post insert");
-        // let res = f(&ids.iter().copied().zip(trajs).collect::<Vec<Trajectory>>());
     }
-    // println!("exited loop");
+
     Ok(())
 }
 
@@ -151,20 +144,18 @@ async fn insert_matched_trajectories(
             Some((*id, buffer))
         })
         .unzip();
-    // println!("trying to insert trajectories with ids:{:?}",&ids);
+
     let sql = format!("insert into matched_taxa (tid, geom) select tid, geom from unnest($1) as tid, unnest($2) as geom ON CONFLICT DO NOTHING;"); //? should probably update conflict rows instead of doing nothing, but its a test and i cant be bothered
     let insert: Option<()> = sqlx::query_as(&sql)
         .bind(ids)
         .bind(&trajs)
         .fetch_optional(&mut *conn)
-        // .fetch_one(&mut *conn)
         .await?;
-    // println!("inserted {} rows", &trajs.len());
+
     Ok(insert.unwrap_or(())) //TIHI
 }
 
 fn map_match(trajs: &[Trajectory], roadnetwork: &Roads) -> Vec<Trajectory> {
-    // print!("commencing map matching for {} trajectories", trajs.len());
     let matched = trajs
         .par_iter()
         .filter_map(|(id, traj)| {
@@ -178,7 +169,7 @@ fn map_match(trajs: &[Trajectory], roadnetwork: &Roads) -> Vec<Trajectory> {
             ))
         })
         .map(|(id, ps)| (id, LineString::from(ps)));
-    // print!("map matching finished");
+
     matched.collect()
 }
 
@@ -215,10 +206,7 @@ async fn get_trajectories(
 
 mod tests {
 
-    // use atlas::porto::map_match_porto;
-
     use ::atlas::*;
-    // use crate::porto::*;
     use dotenvy::dotenv;
     use geo_types::LineString;
     use rusty_roads::RoadIndex;
@@ -276,7 +264,6 @@ mod tests {
             "postgres://{}:{}@{}/{}",
             &username, &db_password, &*ADDRESS, &porto_db
         );
-        // let porto_conn = format!("postgres");
         let porto_conn = create_pool(&porto_conn, Some(100)).await.expect("msg");
 
         let conn = (*POOL)
@@ -304,14 +291,6 @@ mod tests {
         map_match_porto((*POOL).clone(), &road_network, porto_conn)
             .await
             .expect("asdaa");
-        // let connn = (*POOL).acquire().await.unwrap();
-        // let f = async |t: &[Trajectory]| {
-        //     let a = map_match(t, &road_network);
-        //     let b = insert_matched_trajectories((*POOL).try_acquire().unwrap(), &a)
-        //         .await
-        //         .unwrap();
-        //     // todo!();
-        // };
-        // let _ = map_match_porto(POOL.clone(), f);
+
     }
 }
