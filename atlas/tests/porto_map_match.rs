@@ -16,7 +16,6 @@ use sqlx::{pool::PoolConnection, Postgres};
 use ::atlas::wkb_to_linestring;
 use location_obfuscation::*;
 
-
 use rayon::prelude::*;
 type Trajectory = (i32, LineString);
 
@@ -76,7 +75,7 @@ impl NearestNeighbor<Point, LineString<f64>> for Roads {
 
 // impl NearestNeighbor<Point, LineString<f64>> for RoadIndex{
 //     fn nearest_neighbor(&self, point: Point) -> Option<GeomWithData<LineString<f64>, Id>> {
-        
+
 //         todo!()
 //     }
 
@@ -93,7 +92,7 @@ pub async fn map_match_porto(
 where
 {
     const CHUNK_SIZE: i32 = 100; //TODO: should be large if road network index is used
-    // println!("test");
+                                 // println!("test");
     const _: () = assert!(CHUNK_SIZE > 0);
     let ids: Vec<(i32,)> = sqlx::query_as("select id from taxadata;")
         .fetch_all(&porto_pool)
@@ -108,11 +107,14 @@ where
     // keep fetching chunks until every trajectory has been fetched
     // println!("entering loop");
     while all_ids != keys {
-        let (ids, trajs): (Vec<i32>, Vec<LineString>) =
-            get_trajectories(porto_pool.acquire().await?, CHUNK_SIZE, Some(Vec::from_iter(keys.iter().copied()).as_slice()))
-                .await?
-                .into_iter()
-                .unzip();
+        let (ids, trajs): (Vec<i32>, Vec<LineString>) = get_trajectories(
+            porto_pool.acquire().await?,
+            CHUNK_SIZE,
+            Some(Vec::from_iter(keys.iter().copied()).as_slice()),
+        )
+        .await?
+        .into_iter()
+        .unzip();
         // ids_copy = ids.clone();
         // let ress = get_trajectories(pool.acquire().await?, CHUNK_SIZE, None)
         //     .await?;
@@ -260,8 +262,7 @@ mod tests {
     });
     const BBOX_CASSIOPEIA_COUNT: usize = 79;
 
-
-    #[ignore= "this test is very time consuming"]
+    #[ignore = "this test is very time consuming"]
     #[async_std::test]
     async fn match_test() {
         const PORTUGAL: Bbox<f64> = ((-9.8282947, 42.461873), (-6.4709611, 36.4666192));
