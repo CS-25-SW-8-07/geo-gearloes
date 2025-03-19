@@ -8,7 +8,7 @@ use std::{borrow::Cow, collections::HashSet};
 
 use geo_types::{Line, LineString, Point};
 use rstar::{primitives::GeomWithData, PointDistance};
-use rusty_roads::{Id, NearestNeighbor};
+use rusty_roads::{Id, NearestNeighbor, RoadIndex};
 use sqlx::Pool;
 use sqlx::{pool::PoolConnection, Postgres};
 
@@ -54,6 +54,7 @@ impl NearestNeighbor<Point, LineString<f64>> for Roads {
     }
 
     fn nearest_neighbor_road(&self, point: Point<f64>, id: Id) -> Option<Point> {
+        let id = self.ids.iter().position(|x| *x == id).unwrap();
         self.roads[id as usize]
             .points()
             .fold(None, |acc, x| {
@@ -71,6 +72,17 @@ impl NearestNeighbor<Point, LineString<f64>> for Roads {
     }
 }
 
+// impl NearestNeighbor<Point, LineString<f64>> for RoadIndex{
+//     fn nearest_neighbor(&self, point: Point) -> Option<GeomWithData<LineString<f64>, Id>> {
+        
+//         todo!()
+//     }
+
+//     fn nearest_neighbor_road(&self, point: Point, id: Id) -> Option<Point> {
+//         todo!()
+//     }
+// }
+
 pub async fn map_match_porto(
     pool: Pool<Postgres>,
     roadnetwork: &Roads,
@@ -78,12 +90,12 @@ pub async fn map_match_porto(
 ) -> Result<(), sqlx::Error>
 where
 {
-    const CHUNK_SIZE: i32 = 100000;
+    const CHUNK_SIZE: i32 = 10; //TODO: should be large if road network index is used
+    println!("test");
     const _: () = assert!(CHUNK_SIZE > 0);
-    let ids: Vec<(i32,(/*sqlx be trolling */))> = sqlx::query_as("select id from taxadata;")
+    let ids: Vec<(i32,)> = sqlx::query_as("select id from taxadata;")
         .fetch_all(&porto_pool)
         .await?;
-
     let ko = ids.into_iter().map(|e| e.0);
     // let ids: HashSet<i32> = HashSet::from_iter(ids.into_iter().map(|e| e.0));
     let mut received = HashMap::<i32, LineString>::with_capacity(ko.len());
@@ -92,9 +104,10 @@ where
     // let mut ids_copy: Vec<i32> = Vec::with_capacity(CHUNK_SIZE as usize);
 
     // keep fetching chunks until every trajectory has been fetched
+    println!("entering loop");
     while all_ids != keys {
         let (ids, trajs): (Vec<i32>, Vec<LineString>) =
-            get_trajectories(pool.acquire().await?, CHUNK_SIZE, None)
+            get_trajectories(porto_pool.acquire().await?, CHUNK_SIZE, None)
                 .await?
                 .into_iter()
                 .unzip();
@@ -115,8 +128,8 @@ where
             .expect("failed to insert matched trajectories");
         // let res = f(&ids.iter().copied().zip(trajs).collect::<Vec<Trajectory>>());
     }
-
-    todo!()
+    println!("exited loop");
+    Ok(())
 }
 
 async fn insert_matched_trajectories(
@@ -132,12 +145,13 @@ async fn insert_matched_trajectories(
             Some((*id, buffer))
         })
         .unzip();
-    let sql = format!("insert into matched_taxa values ($1, $2)");
+    let sql = format!("insert into matched_taxa (tid, geom) select tid, geom from unnest($1) as tid, unnest($2) as geom ON CONFLICT DO NOTHING;"); //? should probably update conflict rows instead of doing nothing, but its a test and i cant be bothered
     let insert: () = sqlx::query_as(&sql)
         .bind(ids)
-        .bind(trajs)
+        .bind(&trajs)
         .fetch_one(&mut *conn)
         .await?;
+    println!("inserted {} rows", &trajs.len());
     Ok(insert) //TIHI
 }
 
@@ -149,7 +163,7 @@ fn map_match(trajs: &[Trajectory], roadnetwork: &Roads) -> Vec<Trajectory> {
                 *id,
                 obfuscate_points(
                     traj.points().collect::<Vec<Point>>().into_iter(),
-                    roadnetwork.clone(),
+                    roadnetwork,
                 )
                 .ok()?,
             ))
@@ -176,7 +190,7 @@ async fn get_trajectories(
         }
     };
     let sql = format!(
-        "select id, st_asbinary(trajectory::geometry,'NDR') {where_clause} limit {chunk_size}"
+        "select id, st_asbinary(trajectory::geometry,'NDR') from taxadata {where_clause} limit {chunk_size};"
     );
 
     let trajectories: Vec<(i32, Vec<u8>)> = sqlx::query_as(&sql).fetch_all(&mut *conn).await?;
@@ -197,6 +211,7 @@ mod tests {
     // use crate::porto::*;
     use dotenvy::dotenv;
     use geo_types::LineString;
+    use rusty_roads::RoadIndex;
     use sqlx::{Pool, Postgres};
     use std::env;
     use std::sync::LazyLock;
@@ -237,20 +252,22 @@ mod tests {
     });
     const BBOX_CASSIOPEIA_COUNT: usize = 79;
 
+
+    //TODO this test should be ignored (macro)
     #[async_std::test]
     async fn match_test() {
         const PORTUGAL: Bbox<f64> = ((-9.8282947, 42.461873), (-6.4709611, 36.4666192));
         const PORTUGAL_ROAD_COUNT: i32 = 1_362_233;
-
+        println!("starting match test");
         dotenv().unwrap();
         let username = env::var("DB_PROGRAMUSER").unwrap();
         let db_password = env::var("DB_PROGRAMPASSWORD").unwrap();
         let porto_db = env::var("DB_TAXA").unwrap();
         let porto_conn = format!(
-            "postgres:/{}:{}@{}/{}",
+            "postgres://{}:{}@{}/{}",
             &username, &db_password, &*ADDRESS, &porto_db
         );
-        
+        // let porto_conn = format!("postgres");
         let porto_conn = create_pool(&porto_conn, Some(100)).await.expect("msg");
 
         let conn = (*POOL)
@@ -272,6 +289,9 @@ mod tests {
             ids: road_network.0,
             roads: road_network.1,
         };
+
+        let index = RoadIndex::from(&road_network.ids, &road_network.roads); // !hov hov
+
         map_match_porto((*POOL).clone(), &road_network, porto_conn)
             .await
             .expect("asdaa");
