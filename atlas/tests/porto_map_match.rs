@@ -16,6 +16,8 @@ use sqlx::{pool::PoolConnection, Postgres};
 use ::atlas::wkb_to_linestring;
 use location_obfuscation::*;
 
+
+use rayon::prelude::*;
 type Trajectory = (i32, LineString);
 
 #[derive(Clone)]
@@ -90,8 +92,8 @@ pub async fn map_match_porto(
 ) -> Result<(), sqlx::Error>
 where
 {
-    const CHUNK_SIZE: i32 = 10; //TODO: should be large if road network index is used
-    println!("test");
+    const CHUNK_SIZE: i32 = 100; //TODO: should be large if road network index is used
+    // println!("test");
     const _: () = assert!(CHUNK_SIZE > 0);
     let ids: Vec<(i32,)> = sqlx::query_as("select id from taxadata;")
         .fetch_all(&porto_pool)
@@ -104,10 +106,10 @@ where
     // let mut ids_copy: Vec<i32> = Vec::with_capacity(CHUNK_SIZE as usize);
 
     // keep fetching chunks until every trajectory has been fetched
-    println!("entering loop");
+    // println!("entering loop");
     while all_ids != keys {
         let (ids, trajs): (Vec<i32>, Vec<LineString>) =
-            get_trajectories(porto_pool.acquire().await?, CHUNK_SIZE, None)
+            get_trajectories(porto_pool.acquire().await?, CHUNK_SIZE, Some(Vec::from_iter(keys.iter().copied()).as_slice()))
                 .await?
                 .into_iter()
                 .unzip();
@@ -123,12 +125,14 @@ where
             &ids.iter().copied().zip(trajs).collect::<Vec<Trajectory>>(),
             roadnetwork,
         );
+        // println!("pre insert");
         let _ = insert_matched_trajectories(porto_pool.acquire().await.unwrap(), &matched)
             .await
             .expect("failed to insert matched trajectories");
+        // println!("post insert");
         // let res = f(&ids.iter().copied().zip(trajs).collect::<Vec<Trajectory>>());
     }
-    println!("exited loop");
+    // println!("exited loop");
     Ok(())
 }
 
@@ -145,19 +149,22 @@ async fn insert_matched_trajectories(
             Some((*id, buffer))
         })
         .unzip();
+    // println!("trying to insert trajectories with ids:{:?}",&ids);
     let sql = format!("insert into matched_taxa (tid, geom) select tid, geom from unnest($1) as tid, unnest($2) as geom ON CONFLICT DO NOTHING;"); //? should probably update conflict rows instead of doing nothing, but its a test and i cant be bothered
-    let insert: () = sqlx::query_as(&sql)
+    let insert: Option<()> = sqlx::query_as(&sql)
         .bind(ids)
         .bind(&trajs)
-        .fetch_one(&mut *conn)
+        .fetch_optional(&mut *conn)
+        // .fetch_one(&mut *conn)
         .await?;
-    println!("inserted {} rows", &trajs.len());
-    Ok(insert) //TIHI
+    // println!("inserted {} rows", &trajs.len());
+    Ok(insert.unwrap_or(())) //TIHI
 }
 
 fn map_match(trajs: &[Trajectory], roadnetwork: &Roads) -> Vec<Trajectory> {
+    // print!("commencing map matching for {} trajectories", trajs.len());
     let matched = trajs
-        .iter()
+        .par_iter()
         .filter_map(|(id, traj)| {
             Some((
                 *id,
@@ -169,6 +176,7 @@ fn map_match(trajs: &[Trajectory], roadnetwork: &Roads) -> Vec<Trajectory> {
             ))
         })
         .map(|(id, ps)| (id, LineString::from(ps)));
+    // print!("map matching finished");
     matched.collect()
 }
 
@@ -253,7 +261,7 @@ mod tests {
     const BBOX_CASSIOPEIA_COUNT: usize = 79;
 
 
-    //TODO this test should be ignored (macro)
+    #[ignore= "this test is very time consuming"]
     #[async_std::test]
     async fn match_test() {
         const PORTUGAL: Bbox<f64> = ((-9.8282947, 42.461873), (-6.4709611, 36.4666192));
