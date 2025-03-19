@@ -27,4 +27,5 @@ workspace = true
 dotenvy = "0.15.7"
 dotenvy_macro = "0.15.7"
 location_obfuscation = {path = "../location_obfuscation"}
+rayon = "1.10.0"
 rstar = "0.12.2"

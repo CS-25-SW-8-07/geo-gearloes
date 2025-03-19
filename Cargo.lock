@@ -323,6 +323,7 @@ dependencies = [
  "geo-traits",
  "geo-types",
  "location_obfuscation",
+ "rayon",
  "rstar",
  "rusty-roads",
  "sqlx",
