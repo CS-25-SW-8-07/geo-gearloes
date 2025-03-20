@@ -1,5 +1,4 @@
 use derive_more::From;
-use rusty_roads::Id;
 use sqlx::{pool::PoolConnection, Postgres};
 
 use crate::{error::DbError, Bbox};
