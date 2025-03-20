@@ -4,6 +4,9 @@ pub use table::*;
 pub mod index;
 pub use index::*;
 
+pub mod graph;
+pub use graph::*;
+
 #[inline]
 pub(crate) fn default<T: Default>() -> T {
     T::default()
