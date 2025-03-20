@@ -1,5 +1,6 @@
 use sqlx::{pool::PoolConnection, Postgres};
-// JOin roads and featureclass, returns road_id, fid and fclass
+
+// Join roads and featureclass, returns road_id, fid and fclass
 pub async fn join_roads_featureclass(
     mut conn: PoolConnection<Postgres>,
     limit: Option<u32>,
@@ -56,7 +57,7 @@ pub async fn join_refmany_ref(
         _ => {
             let where_in = with
                 .iter()
-                .map(|id|id.to_string() + ",")
+                .map(|id| id.to_string() + ",")
                 .collect::<String>();
             let where_in = &where_in[0..where_in.len() - 1];
             format!("WHERE road_id IN ({where_in})")
@@ -106,10 +107,10 @@ mod tests {
     use super::super::bind;
     use super::*;
     use dotenvy::dotenv;
+    use sqlx::pool::Pool;
     use std::env;
     use std::sync::LazyLock;
-    use sqlx::pool::Pool;
-    
+
     const CONNCOUNT: u32 = 100;
     // these variables are such that environment variables are only loaded once when running test suite
     static USERNAME: LazyLock<String> = LazyLock::new(|| {
@@ -142,50 +143,60 @@ mod tests {
         #[async_std::test]
         async fn join_no_limit_no_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 1264962;
             assert_eq!(
                 join_roads_featureclass(conn, None, &[])
                     .await
-                    .expect("Paniced!")
+                    .expect("Failed to join, no limit, no where")
                     .len(),
-                1264962
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_limit_no_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 5;
             assert_eq!(
-                join_roads_featureclass(conn, Some(5), &[])
-                    .await
-                    .expect("Paniced!")
-                    .len(),
-                5
+                join_roads_featureclass(
+                    conn,
+                    Some(u32::try_from(CONNCOUNT).expect("Value to large for u32.")),
+                    &[]
+                )
+                .await
+                .expect("Failed to join, with limit, no where")
+                .len(),
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_no_limit_with_where() {
             let conn = (*POOL).acquire().await.expect("msg");
-
+            const CONNCOUNT: usize = 2;
             assert_eq!(
                 join_roads_featureclass(conn, None, &[64285, 64286])
                     .await
-                    .expect("Paniced!")
+                    .expect("Failed to join, no limit, with where")
                     .len(),
-                2
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_with_limit_with_where() {
             let conn = (*POOL).acquire().await.expect("msg");
-
+            const CONNCOUNT: usize = 1;
             assert_eq!(
-                join_roads_featureclass(conn, Some(1), &[64285, 64286])
-                    .await
-                    .expect("Paniced!")
-                    .len(),
-                1
+                join_roads_featureclass(
+                    conn,
+                    Some(u32::try_from(CONNCOUNT).expect("Value to large for u32.")),
+                    &[64285, 64286]
+                )
+                .await
+                .expect("Failed to join, with limit, with where!")
+                .len(),
+                CONNCOUNT
             );
         }
     }
@@ -196,24 +207,29 @@ mod tests {
         #[async_std::test]
         async fn join_no_limit() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 418882;
             assert_eq!(
                 join_roads_roadsnames(conn, None)
                     .await
-                    .expect("Paniced!")
+                    .expect("Failed to join, no limit")
                     .len(),
-                418882
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_with_limit() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 5;
             assert_eq!(
-                join_roads_roadsnames(conn, Some(5))
-                    .await
-                    .expect("Paniced!")
-                    .len(),
-                5
+                join_roads_roadsnames(
+                    conn,
+                    Some(u32::try_from(CONNCOUNT).expect("Value to large for u32"))
+                )
+                .await
+                .expect("Failed to join, with limit!")
+                .len(),
+                CONNCOUNT
             );
         }
     }
@@ -224,48 +240,60 @@ mod tests {
         #[async_std::test]
         async fn join_no_limit_no_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 38614;
             assert_eq!(
                 join_refmany_ref(conn, None, &[])
                     .await
-                    .expect("Paniced!")
+                    .expect("Failed to join, no limit, no where")
                     .len(),
-                38614
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_with_limit_no_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 50;
             assert_eq!(
-                join_refmany_ref(conn, Some(50), &[])
-                    .await
-                    .expect("Paniced!")
-                    .len(),
-                50
+                join_refmany_ref(
+                    conn,
+                    Some(u32::try_from(CONNCOUNT).expect("Value to large for u32.")),
+                    &[]
+                )
+                .await
+                .expect("Failed to join, with limit, no where!")
+                .len(),
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_no_limit_with_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 5;
             assert_eq!(
                 join_refmany_ref(conn, None, &[51440, 500866])
                     .await
-                    .expect("Paniced!")
+                    .expect("Failed to join, no limit, with where")
                     .len(),
-                5
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_with_limit_with_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 2;
             assert_eq!(
-                join_refmany_ref(conn, Some(2), &[51440, 500866])
-                    .await
-                    .expect("Paniced!")
-                    .len(),
-                2
+                join_refmany_ref(
+                    conn,
+                    Some(u32::try_from(CONNCOUNT).expect("Value to large for u32.")),
+                    &[51440, 500866]
+                )
+                .await
+                .expect("Failed to join, with limit, with where")
+                .len(),
+                CONNCOUNT
             );
         }
     }
@@ -276,48 +304,60 @@ mod tests {
         #[async_std::test]
         async fn join_no_limit_no_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 38120;
             assert_eq!(
                 join_roads_refmany_ref(conn, None, &[])
                     .await
-                    .expect("Paniced!")
+                    .expect("Failed to join, no limit, no where!")
                     .len(),
-                38120
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_with_limit_no_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 50;
             assert_eq!(
-                join_roads_refmany_ref(conn, Some(50), &[])
-                    .await
-                    .expect("Paniced!")
-                    .len(),
-                50
+                join_roads_refmany_ref(
+                    conn,
+                    Some(u32::try_from(CONNCOUNT).expect("Value to large for u32.")),
+                    &[]
+                )
+                .await
+                .expect("Failed to join, with limit, no where")
+                .len(),
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_no_limit_with_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 3;
             assert_eq!(
                 join_roads_refmany_ref(conn, None, &[20351, 20352])
                     .await
-                    .expect("Paniced!")
+                    .expect("Failed to join, no limit, with where")
                     .len(),
-                3
+                CONNCOUNT
             );
         }
 
         #[async_std::test]
         async fn join_with_limit_with_where() {
             let conn = (*POOL).acquire().await.expect("msg");
+            const CONNCOUNT: usize = 2;
             assert_eq!(
-                join_roads_refmany_ref(conn, Some(2), &[20351, 20352])
-                    .await
-                    .expect("Paniced!")
-                    .len(),
-                2
+                join_roads_refmany_ref(
+                    conn,
+                    Some(u32::try_from(CONNCOUNT).expect("Value to large for u32.")),
+                    &[20351, 20352]
+                )
+                .await
+                .expect("Failed to join, with limit, with where")
+                .len(),
+                CONNCOUNT
             );
         }
     }
