@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::super::*;
-use petgraph::matrix_graph::*;
+use petgraph::{matrix_graph::*, visit::EdgeRef};
 
 #[derive(Debug, Clone)]
 pub struct RoadWithNode<'a> {
@@ -16,6 +16,69 @@ impl RoadWithNode<'_> {
     }
 }
 type RoadNetwork<'a, Ix: IndexType> = DiMatrix<i32, &'a Road, Option<&'a Road>, Ix>;
+type NodeId = i32;
+
+pub struct Roadnetwork<'a, Ix: IndexType> {
+    network: DiMatrix<NodeId, &'a Road, Option<&'a Road>, Ix>,
+    index: HashMap<NodeId, NodeIndex<Ix>>,
+}
+
+impl<'a, Ix: IndexType> Roadnetwork<'a, Ix> {
+    pub fn new<I>(roads: I) -> Option<Self>
+    where
+        I: Iterator<Item = RoadWithNode<'a>> + Clone,
+    {
+        let size = roads.clone().count();
+        let mut graph = RoadNetwork::<Ix>::with_capacity(size);
+        let mut map = HashMap::<NodeId, NodeIndex<Ix>>::with_capacity(size);
+        for RoadWithNode {
+            road,
+            source,
+            target,
+        } in roads
+        {
+            let s = *map.entry(source).or_insert_with(|| graph.add_node(source));
+            let dest = *map.entry(target).or_insert_with(|| graph.add_node(target));
+            match road.direction {
+                Direction::Forward => graph.add_edge(s, dest, road),
+                Direction::Backward => graph.add_edge(dest, s, road),
+                Direction::Bidirectional => {
+                    graph.add_edge(s, dest, road);
+                    graph.add_edge(dest, s, road);
+                }
+            };
+        }
+        Some(Roadnetwork {
+            network: graph,
+            index: map,
+        })
+    }
+
+    // fn sources<I>(&self, s: &NodeId) -> Option<impl Iterator<Item=i32>>
+    // where
+    //     I: Iterator<Item = i32 >,
+    // {
+    //     let idx = self.index.get(s)?;
+    //     let a = self.network.edges(*idx).map(|(_,_,r)| 1);
+    //     // Some(a)
+    //     todo!()
+    // }
+
+    fn path_find<F, H>(&self, source: NodeId, target: NodeId, cost: F, heuristic: H) -> Option<()>
+    where
+        F: Fn(&Road) -> f64,
+        H: FnMut(petgraph::prelude::NodeIndex<Ix>) -> f64,
+    {
+        use petgraph::algo::astar;
+
+        let edge_cost = |e: (_, _, &&Road)| cost(*e.weight());
+        let start = self.index.get(&source)?;
+        let target = self.index.get(&target)?;
+        let is_goal = |n| n == *target;
+        let res = astar(&self.network, *start, is_goal, edge_cost, heuristic);
+        todo!()
+    }
+}
 
 pub fn graph_from_road_network<Ix: IndexType>(
     road_network: Vec<RoadWithNode>,
@@ -35,7 +98,7 @@ pub fn graph_from_road_network<Ix: IndexType>(
     } in &road_network
     {
         let s = *map.entry(source).or_insert_with(|| graph.add_node(source));
-        let dest = *map.entry(target).or_insert_with(||graph.add_node(target));
+        let dest = *map.entry(target).or_insert_with(|| graph.add_node(target));
         // let s = graph.add_node(source);
         // let dest = graph.add_node(target);
         match road.direction {
@@ -57,6 +120,18 @@ pub fn graph_from_road_network<Ix: IndexType>(
 
     Some(graph)
 }
+
+// pub fn a<'a,Ix: IndexType>(network: impl Iterator<Item= RoadNetwork<'a,Ix>>) -> Option<RoadNetwork<'a,Ix>> {
+//     assert!(
+//         <Ix as petgraph::adj::IndexType>::max() > Ix::new(network.count()),
+//         "Road network is greater than maximum index of graph"
+//     ); //TODO better error handling
+//        // let mut graph = MatrixGraph::<i32, &Road>::new();
+//        // let mut graph = RoadNetwork::<i32>::new();
+//     let mut graph = RoadNetwork::<Ix>::with_capacity(network.count());
+//     let mut map = HashMap::<i32, NodeIndex<Ix>>::with_capacity(network.count());
+//     todo!()
+// }
 
 #[cfg(test)]
 mod test {
@@ -101,5 +176,18 @@ mod test {
         println!("{:?}", a); // use this tool to visualize https://dreampuf.github.io/GraphvizOnline/
         assert_eq!(graph.edge_count(), 3, "expected a graph with 3 edges");
         assert_eq!(graph.node_count(), 3, "expected a graph with 3 nodes");
+    }
+    #[test]
+    fn get_road() {
+        let r = road();
+        let network = vec![
+            road_factory(&r, 1, 2),
+            road_factory(&r, 2, 3),
+            road_factory(&r, 3, 1),
+        ];
+
+        let graph = graph_from_road_network::<u32>(network).unwrap();
+
+        // graph.
     }
 }
