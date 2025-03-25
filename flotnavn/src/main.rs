@@ -5,15 +5,15 @@ use std::env;
 use atlas::{bind, box_query};
 use comms::Parquet;
 
-
+// ((11.537934, 55.2575578), (11.536422, 55.2506889)) :: osm_id = 96676840 :: id = 176513
 #[get("/boundingbox")]
 async fn get_all_records(pool: web::Data<PgPool>) -> impl Responder {
-    let bbox = ((8.4741452, 55.462423), (8.4743079, 55.4627272));
+    let bbox = ((11.537934, 55.2575578), (11.536422, 55.2506889));
     let conn = pool.acquire().await.unwrap();
 
     match atlas::box_query(conn, bbox, None).await {
         Ok(roads) => {
-            let result = roads.into_iter().collect::<Roads>().to_parquet().expect("Couldn't compile to parquet");
+            let result = roads.into_iter().collect::<Roads>().to_parquet().expect("Could not compile to parquet");
                 /* 
                 .map(|road| {
                     let direction_str = match road.direction {
