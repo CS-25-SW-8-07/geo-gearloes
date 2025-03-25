@@ -1043,6 +1043,7 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "atlas",
+ "comms",
  "dotenv",
  "rusty-roads",
  "sqlx",

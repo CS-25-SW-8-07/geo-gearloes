@@ -1,7 +1,9 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
 use std::env;
 use atlas::{bind, box_query};
+use comms::Parquet;
 
 
 #[get("/boundingbox")]
@@ -11,7 +13,8 @@ async fn get_all_records(pool: web::Data<PgPool>) -> impl Responder {
 
     match atlas::box_query(conn, bbox, None).await {
         Ok(roads) => {
-            let result = roads.into_iter()
+            let result = roads.into_iter().collect::<Roads>().to_parquet().expect("Couldn't compile to parquet");
+                /* 
                 .map(|road| {
                     let direction_str = match road.direction {
                         rusty_roads::Direction::Forward => "Forward",
@@ -32,6 +35,7 @@ async fn get_all_records(pool: web::Data<PgPool>) -> impl Responder {
                     )
                 })
                 .collect::<String>();
+            */
 
             HttpResponse::Ok().content_type("text/plain").body(result)
         },
