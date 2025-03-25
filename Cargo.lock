@@ -1044,6 +1044,7 @@ dependencies = [
  "actix-web",
  "atlas",
  "dotenv",
+ "rusty-roads",
  "sqlx",
  "tokio",
 ]

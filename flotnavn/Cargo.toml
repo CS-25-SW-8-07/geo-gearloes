@@ -9,6 +9,7 @@ atlas = { version = "0.1.0", path = "../atlas" }
 dotenv = "0.15.0"
 sqlx = { version = "0.8.3", features = ["postgres", "runtime-tokio-native-tls"] }
 tokio = "1.44.1"
+rusty-roads = { path = "../rusty-roads" }
 
 [lints]
 workspace = true
