@@ -21,12 +21,12 @@ type RoadNetworkGraph<'a, Ix: IndexType> = DiMatrix<i32, &'a Road, Option<&'a Ro
 
 type NodeId = i32;
 
-pub struct Roadnetwork<'a, Ix: IndexType> {
+pub struct RoadNetwork<'a, Ix: IndexType> {
     network: DiMatrix<NodeId, &'a Road, Option<&'a Road>, Ix>,
     bi_map: BiMap<NodeId, NodeIndex<Ix>>,
 }
 
-impl<'a, Ix: IndexType> Roadnetwork<'a, Ix> {
+impl<'a, Ix: IndexType> RoadNetwork<'a, Ix> {
     pub fn new<I>(roads: I) -> Option<Self>
     where
         I: Iterator<Item = RoadWithNode<'a>> + Clone,
@@ -65,7 +65,7 @@ impl<'a, Ix: IndexType> Roadnetwork<'a, Ix> {
                 }
             };
         }
-        Some(Roadnetwork {
+        Some(RoadNetwork {
             network: graph,
             bi_map,
         })
@@ -184,7 +184,7 @@ mod test {
 
     use crate::Road;
 
-    use super::{graph_from_road_network, NonNegativef64, RoadWithNode, Roadnetwork};
+    use super::{graph_from_road_network, NonNegativef64, RoadWithNode, RoadNetwork};
     // static mut ID: u64 = 1;
     fn road() -> Road {
         Road {
@@ -215,7 +215,7 @@ mod test {
             road_factory(&r, 2, 3),
             road_factory(&r, 3, 1),
         ];
-        let network = Roadnetwork::<u32>::new(network.into_iter()).unwrap();
+        let network = RoadNetwork::<u32>::new(network.into_iter()).unwrap();
 
         let a = petgraph::dot::Dot::with_config(
             &network.network,
@@ -246,7 +246,7 @@ mod test {
             road_factory(&r, 2, 5),
         ]; // assuming uniform weights, shortest path from 1 to 5 should be 1 -> 2 -> 5
 
-        let network = Roadnetwork::<u32>::new(network.into_iter()).unwrap();
+        let network = RoadNetwork::<u32>::new(network.into_iter()).unwrap();
         let a = petgraph::dot::Dot::with_config(
             &network.network,
             &[petgraph::dot::Config::EdgeNoLabel],
