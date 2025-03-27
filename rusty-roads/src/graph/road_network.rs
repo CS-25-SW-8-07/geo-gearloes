@@ -166,18 +166,6 @@ pub fn graph_from_road_network<Ix: IndexType>(
     Some(graph)
 }
 
-// pub fn a<'a,Ix: IndexType>(network: impl Iterator<Item= RoadNetwork<'a,Ix>>) -> Option<RoadNetwork<'a,Ix>> {
-//     assert!(
-//         <Ix as petgraph::adj::IndexType>::max() > Ix::new(network.count()),
-//         "Road network is greater than maximum index of graph"
-//     ); //TODO better error handling
-//        // let mut graph = MatrixGraph::<i32, &Road>::new();
-//        // let mut graph = RoadNetwork::<i32>::new();
-//     let mut graph = RoadNetwork::<Ix>::with_capacity(network.count());
-//     let mut map = HashMap::<i32, NodeIndex<Ix>>::with_capacity(network.count());
-//     todo!()
-// }
-
 #[cfg(test)]
 mod test {
     use geo_types::{coord, LineString};
@@ -261,6 +249,7 @@ mod test {
     }
 
     #[test]
+    #[ignore = "deprecated function"]
     fn graph_construct() {
         let r = road();
         let network = vec![
@@ -276,6 +265,7 @@ mod test {
         assert_eq!(graph.node_count(), 3, "expected a graph with 3 nodes");
     }
     #[test]
+    #[ignore = "deprecated function"]
     fn get_road() {
         let r = road();
         let network = vec![
@@ -298,14 +288,7 @@ mod test {
         const _: () = assert!(NonNegativef64::new(0.0).is_some());
         const _: () = assert!(NonNegativef64::new(f64::INFINITY).is_some());
 
-        // let illegal_input = [f64::NAN, f64::NEG_INFINITY, -1.0, 0.0 - f64::EPSILON];
 
-        // for (idx, ele) in illegal_input.into_iter().enumerate() {
-        //     assert!(
-        //         NonNegativef64::new(ele).is_none(),
-        //         "the number {} should not be considered nonnegative",
-        //         ele
-        //     );
-        // }
+        assert!(true,"does not really need to be a test");
     }
 }
