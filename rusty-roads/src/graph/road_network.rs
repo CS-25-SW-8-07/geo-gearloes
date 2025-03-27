@@ -65,6 +65,7 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
                 }
             };
         }
+        debug_assert_eq!(graph.node_count(),bi_map.len(), "number of graph nodes should equal number of entries in hashmap");
         Some(RoadNetwork {
             network: graph,
             bi_map,
