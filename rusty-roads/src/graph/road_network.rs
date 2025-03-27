@@ -246,7 +246,7 @@ mod test {
         );
         println!("{:?}", a); // use this tool to visualize https://dreampuf.github.io/GraphvizOnline/
         assert_eq!(network.network.node_count(),network.bi_map.len());
-        assert_eq!(network.network.edge_count(),network.bi_map.len()*3,"edge count should be twice as high in a fully bi-directional road network");
+        assert_eq!(network.network.edge_count(),network.bi_map.len()*2,"edge count should be twice as high in a fully bi-directional road network");
     }
 
     #[test]
@@ -273,6 +273,30 @@ mod test {
 
         assert_eq!(cost.0, 2.0);
         assert_eq!(path, vec![1, 2, 5])
+    }
+
+    #[test]
+    fn disconnected_graphs_astar() {
+        let r = road();
+        let network = vec![
+            road_factory(&r, 1, 2),
+            road_factory(&r, 2, 3),
+            road_factory(&r, 3, 1),
+            road_factory(&r, 2, 4),
+            road_factory(&r, 4, 5),
+            road_factory(&r, 2, 5),
+            road_factory(&r, 6, 7),
+        ]; // assuming uniform weights, shortest path from 1 to 5 should be 1 -> 2 -> 5
+
+        let network = RoadNetwork::<u32>::new(network.into_iter()).unwrap();
+        let a = petgraph::dot::Dot::with_config(
+            &network.network,
+            &[petgraph::dot::Config::EdgeNoLabel],
+        );
+        println!("{:?}", a); // use this tool to visualize https://dreampuf.github.io/GraphvizOnline/
+        let res = network
+            .path_find(1, 6, |_| NonNegativef64(1.0), |_| NonNegativef64(0.0));
+        assert!(res.is_none(), "No path should be possible between disconnected graphs");
     }
 
     #[test]
