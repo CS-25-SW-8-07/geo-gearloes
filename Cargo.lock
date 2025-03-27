@@ -1894,6 +1894,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "comms",
+ "derive_more",
  "geo-traits",
  "geo-types",
  "itertools",
