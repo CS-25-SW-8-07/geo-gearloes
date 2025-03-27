@@ -32,6 +32,10 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
         I: Iterator<Item = RoadWithNode<'a>> + Clone,
     {
         let size = roads.clone().count();
+        assert!(
+            <Idx as petgraph::adj::IndexType>::max().index() > size,
+            "Road network is greater than maximum index of graph"
+        ); //TODO better error handling
         let mut graph = RoadNetworkGraph::<Idx>::with_capacity(size);
         let mut bi_map = BiHashMap::with_capacity(size);
         for RoadWithNode {
@@ -177,6 +181,8 @@ pub fn graph_from_road_network<Idx: IndexType>(
 
 #[cfg(test)]
 mod test {
+    use std::u8;
+
     use geo_types::{coord, LineString};
 
     use crate::Road;
@@ -217,7 +223,7 @@ mod test {
             road_factory(&r, 2, 3),
             road_factory(&r, 3, 1),
         ];
-        let network = RoadNetwork::<u32>::new(network.into_iter()).unwrap();
+        let network = RoadNetwork::<u8>::new(network.into_iter()).unwrap();
 
         let a = petgraph::dot::Dot::with_config(
             &network.network,
@@ -238,15 +244,19 @@ mod test {
             road_factory(&br, 2, 3),
             road_factory(&br, 3, 1),
         ];
-        let network = RoadNetwork::<u32>::new(network.into_iter()).unwrap();
+        let network = RoadNetwork::<u8>::new(network.into_iter()).unwrap();
 
         let a = petgraph::dot::Dot::with_config(
             &network.network,
             &[petgraph::dot::Config::EdgeNoLabel],
         );
         println!("{:?}", a); // use this tool to visualize https://dreampuf.github.io/GraphvizOnline/
-        assert_eq!(network.network.node_count(),network.bi_map.len());
-        assert_eq!(network.network.edge_count(),network.bi_map.len()*2,"edge count should be twice as high in a fully bi-directional road network");
+        assert_eq!(network.network.node_count(), network.bi_map.len());
+        assert_eq!(
+            network.network.edge_count(),
+            network.bi_map.len() * 2,
+            "edge count should be twice as high in a fully bi-directional road network"
+        );
     }
 
     #[test]
@@ -261,7 +271,7 @@ mod test {
             road_factory(&r, 2, 5),
         ]; // assuming uniform weights, shortest path from 1 to 5 should be 1 -> 2 -> 5
 
-        let network = RoadNetwork::<u32>::new(network.into_iter()).unwrap();
+        let network = RoadNetwork::<u8>::new(network.into_iter()).unwrap();
         let a = petgraph::dot::Dot::with_config(
             &network.network,
             &[petgraph::dot::Config::EdgeNoLabel],
@@ -288,15 +298,29 @@ mod test {
             road_factory(&r, 6, 7),
         ]; // assuming uniform weights, shortest path from 1 to 5 should be 1 -> 2 -> 5
 
-        let network = RoadNetwork::<u32>::new(network.into_iter()).unwrap();
+        let network = RoadNetwork::<u8>::new(network.into_iter()).unwrap();
         let a = petgraph::dot::Dot::with_config(
             &network.network,
             &[petgraph::dot::Config::EdgeNoLabel],
         );
         println!("{:?}", a); // use this tool to visualize https://dreampuf.github.io/GraphvizOnline/
-        let res = network
-            .path_find(1, 6, |_| NonNegativef64(1.0), |_| NonNegativef64(0.0));
-        assert!(res.is_none(), "No path should be possible between disconnected graphs");
+        let res = network.path_find(1, 6, |_| NonNegativef64(1.0), |_| NonNegativef64(0.0));
+        assert!(
+            res.is_none(),
+            "No path should be possible between disconnected graphs"
+        );
+    }
+    #[test]
+    #[should_panic(expected="Road network is greater than maximum index of graph")]
+    fn too_big_graph() {
+        let r = road();
+        let roads = vec![road_factory(&r, 1, 1); u8::MAX as usize + 1];
+        let roads = roads.into_iter().enumerate().map(|(i, r)| RoadWithNode {
+            road: r.road,
+            source: i as i32,
+            target: r.target,
+        });
+        let _big_graph = RoadNetwork::<u8>::new(roads);
     }
 
     #[test]
@@ -315,6 +339,8 @@ mod test {
         assert_eq!(graph.edge_count(), 3, "expected a graph with 3 edges");
         assert_eq!(graph.node_count(), 3, "expected a graph with 3 nodes");
     }
+
+
     #[test]
     #[ignore = "deprecated function"]
     fn get_road() {
