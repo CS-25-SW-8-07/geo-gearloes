@@ -210,11 +210,6 @@ mod test {
             &[petgraph::dot::Config::EdgeNoLabel],
         );
         println!("{:?}", a); // use this tool to visualize https://dreampuf.github.io/GraphvizOnline/
-                             // assert_eq!(
-                             //     network.network.node_count(),
-                             //     network.index.values().len(),
-                             //     "Hashmap should contain as many values, as there are nodes"
-                             // );
         assert_eq!(
             network.network.node_count(),
             network.bi_map.len(),
