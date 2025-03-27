@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-
 use super::super::*;
+use derive_more::Into;
 use petgraph::{matrix_graph::*, visit::EdgeRef};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct RoadWithNode<'a> {
@@ -69,14 +69,36 @@ impl<'a, Ix: IndexType> Roadnetwork<'a, Ix> {
         F: Fn(&Road) -> f64,
         H: FnMut(petgraph::prelude::NodeIndex<Ix>) -> f64,
     {
-        use petgraph::algo::astar;
-
         let edge_cost = |e: (_, _, &&Road)| cost(*e.weight());
         let start = self.index.get(&source)?;
         let target = self.index.get(&target)?;
         let is_goal = |n| n == *target;
-        let res = astar(&self.network, *start, is_goal, edge_cost, heuristic);
+        let (total_cost, track) =
+            petgraph::algo::astar(&self.network, *start, is_goal, edge_cost, heuristic)?;
+        let ids = track
+            .into_iter()
+            .map(|idx| *self.network.node_weight(idx))
+            .collect::<Vec<_>>();
+
+        // const A:std::num::NonZero<i32> = std::num::NonZero::<i32>::new(0).unwrap();
         todo!()
+    }
+}
+
+#[derive(Into)]
+pub struct NonNegativef64(f64);
+
+impl NonNegativef64 {
+    pub const fn new(num: f64) -> Option<NonNegativef64> {
+        // const _: () = assert!(-0.0f64 < 0.0f64);
+        // const _: () = assert!(f64::NAN < 0.0f64);
+        // assert!(num>0.0);
+        match num {
+            // -0.0 => None,
+            // nan if f64::is_nan(nan) => None,
+            n if n.signum() == 1.0 => Some(NonNegativef64(n)),
+            _ => None,
+        }
     }
 }
 
@@ -135,11 +157,13 @@ pub fn graph_from_road_network<Ix: IndexType>(
 
 #[cfg(test)]
 mod test {
+    use std::num::NonZero;
+
     use geo_types::{coord, LineString};
 
     use crate::Road;
 
-    use super::{graph_from_road_network, RoadWithNode};
+    use super::{graph_from_road_network, NonNegativef64, RoadWithNode};
     // static mut ID: u64 = 1;
     fn road() -> Road {
         Road {
@@ -189,5 +213,24 @@ mod test {
         let graph = graph_from_road_network::<u32>(network).unwrap();
 
         // graph.
+    }
+    #[test]
+    fn non_negative() {
+        // const C: NonNegativef64 = NonNegativef64::new(-1.0).unwrap(); //! this will cause a compile error
+        const _: () = assert!(NonNegativef64::new(-1.0).is_none());
+        const _: () = assert!(NonNegativef64::new(f64::NAN).is_none());
+        const _: () = assert!(NonNegativef64::new(f64::NEG_INFINITY).is_none());
+        const _: () = assert!(NonNegativef64::new(0.0-f64::EPSILON).is_none());
+        const _: () = assert!(NonNegativef64::new(0.0).is_some());
+
+        // let illegal_input = [f64::NAN, f64::NEG_INFINITY, -1.0, 0.0 - f64::EPSILON];
+
+        // for (idx, ele) in illegal_input.into_iter().enumerate() {
+        //     assert!(
+        //         NonNegativef64::new(ele).is_none(),
+        //         "the number {} should not be considered nonnegative",
+        //         ele
+        //     );
+        // }
     }
 }
