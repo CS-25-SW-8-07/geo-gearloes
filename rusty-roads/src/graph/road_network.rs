@@ -90,12 +90,7 @@ pub struct NonNegativef64(f64);
 
 impl NonNegativef64 {
     pub const fn new(num: f64) -> Option<NonNegativef64> {
-        // const _: () = assert!(-0.0f64 < 0.0f64);
-        // const _: () = assert!(f64::NAN < 0.0f64);
-        // assert!(num>0.0);
         match num {
-            // -0.0 => None,
-            // nan if f64::is_nan(nan) => None,
             n if n.signum() == 1.0 => Some(NonNegativef64(n)),
             _ => None,
         }
@@ -216,12 +211,13 @@ mod test {
     }
     #[test]
     fn non_negative() {
-        // const C: NonNegativef64 = NonNegativef64::new(-1.0).unwrap(); //! this will cause a compile error
+        const _: () = assert!(NonNegativef64::new(-0.0).is_none());
         const _: () = assert!(NonNegativef64::new(-1.0).is_none());
         const _: () = assert!(NonNegativef64::new(f64::NAN).is_none());
         const _: () = assert!(NonNegativef64::new(f64::NEG_INFINITY).is_none());
-        const _: () = assert!(NonNegativef64::new(0.0-f64::EPSILON).is_none());
+        const _: () = assert!(NonNegativef64::new(0.0 - f64::EPSILON).is_none());
         const _: () = assert!(NonNegativef64::new(0.0).is_some());
+        const _: () = assert!(NonNegativef64::new(f64::INFINITY).is_some());
 
         // let illegal_input = [f64::NAN, f64::NEG_INFINITY, -1.0, 0.0 - f64::EPSILON];
 
