@@ -17,22 +17,22 @@ impl RoadWithNode<'_> {
     }
 }
 #[allow(type_alias_bounds)]
-type RoadNetworkGraph<'a, Ix: IndexType> = DiMatrix<i32, &'a Road, Option<&'a Road>, Ix>;
+type RoadNetworkGraph<'a, Idx: IndexType> = DiMatrix<i32, &'a Road, Option<&'a Road>, Idx>;
 
 type NodeId = i32;
 
-pub struct RoadNetwork<'a, Ix: IndexType> {
-    network: DiMatrix<NodeId, &'a Road, Option<&'a Road>, Ix>,
-    bi_map: BiMap<NodeId, NodeIndex<Ix>>,
+pub struct RoadNetwork<'a, Idx: IndexType> {
+    network: DiMatrix<NodeId, &'a Road, Option<&'a Road>, Idx>,
+    bi_map: BiMap<NodeId, NodeIndex<Idx>>,
 }
 
-impl<'a, Ix: IndexType> RoadNetwork<'a, Ix> {
+impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
     pub fn new<I>(roads: I) -> Option<Self>
     where
         I: Iterator<Item = RoadWithNode<'a>> + Clone,
     {
         let size = roads.clone().count();
-        let mut graph = RoadNetworkGraph::<Ix>::with_capacity(size);
+        let mut graph = RoadNetworkGraph::<Idx>::with_capacity(size);
         let mut bi_map = BiHashMap::with_capacity(size);
         for RoadWithNode {
             road,
@@ -96,7 +96,7 @@ impl<'a, Ix: IndexType> RoadNetwork<'a, Ix> {
         let start = self.bi_map.get_by_left(&source)?;
         let target = self.bi_map.get_by_left(&target)?;
         let is_goal = |n| n == *target;
-        let new_heuristic  = |idx: NodeIndex<Ix>| {
+        let new_heuristic  = |idx: NodeIndex<Idx>| {
             heuristic(*self.bi_map
                 .get_by_right(&idx)
                 .expect("expected to find a node id corresponding to graph index")).0
@@ -125,17 +125,17 @@ impl NonNegativef64 {
 }
 
 #[deprecated]
-pub fn graph_from_road_network<Ix: IndexType>(
+pub fn graph_from_road_network<Idx: IndexType>(
     road_network: Vec<RoadWithNode>,
-) -> Option<RoadNetworkGraph<Ix>> {
+) -> Option<RoadNetworkGraph<Idx>> {
     assert!(
-        <Ix as petgraph::adj::IndexType>::max() > Ix::new(road_network.len()),
+        <Idx as petgraph::adj::IndexType>::max() > Idx::new(road_network.len()),
         "Road network is greater than maximum index of graph"
     ); //TODO better error handling
        // let mut graph = MatrixGraph::<i32, &Road>::new();
        // let mut graph = RoadNetwork::<i32>::new();
-    let mut graph = RoadNetworkGraph::<Ix>::with_capacity(road_network.len());
-    let mut map = HashMap::<i32, NodeIndex<Ix>>::with_capacity(road_network.len());
+    let mut graph = RoadNetworkGraph::<Idx>::with_capacity(road_network.len());
+    let mut map = HashMap::<i32, NodeIndex<Idx>>::with_capacity(road_network.len());
     for &RoadWithNode {
         road,
         source,
