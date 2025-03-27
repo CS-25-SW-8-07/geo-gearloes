@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(pool.clone())) // Share the pool across all routes
             .service(http_methods::testing123)
-            .service(http_methods::get_all_records)
+            .service(http_methods::get_roads_in_bbox)
     })
     .bind(("127.0.0.1", 8080))? // Bind to localhost:8080
     .run()
