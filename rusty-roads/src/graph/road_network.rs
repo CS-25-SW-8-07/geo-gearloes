@@ -65,7 +65,11 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
                 }
             };
         }
-        debug_assert_eq!(graph.node_count(),bi_map.len(), "number of graph nodes should equal number of entries in hashmap");
+        debug_assert_eq!(
+            graph.node_count(),
+            bi_map.len(),
+            "number of graph nodes should equal number of entries in hashmap"
+        );
         Some(RoadNetwork {
             network: graph,
             bi_map,
@@ -97,10 +101,14 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
         let start = self.bi_map.get_by_left(&source)?;
         let target = self.bi_map.get_by_left(&target)?;
         let is_goal = |n| n == *target;
-        let new_heuristic  = |idx: NodeIndex<Idx>| {
-            heuristic(*self.bi_map
-                .get_by_right(&idx)
-                .expect("expected to find a node id corresponding to graph index")).0
+        let new_heuristic = |idx: NodeIndex<Idx>| {
+            heuristic(
+                *self
+                    .bi_map
+                    .get_by_right(&idx)
+                    .expect("expected to find a node id corresponding to graph index"),
+            )
+            .0
         };
 
         let (total_cost, track) =
@@ -173,7 +181,7 @@ mod test {
 
     use crate::Road;
 
-    use super::{graph_from_road_network, NonNegativef64, RoadWithNode, RoadNetwork};
+    use super::{graph_from_road_network, NonNegativef64, RoadNetwork, RoadWithNode};
     // static mut ID: u64 = 1;
     fn road() -> Road {
         Road {
@@ -187,6 +195,11 @@ mod test {
             bridge: false,
             tunnel: false,
         }
+    }
+    fn road_bidirectional() -> Road {
+        let mut road = road();
+        road.direction = crate::Direction::Bidirectional;
+        road
     }
     fn road_factory(road: &Road, s: i32, t: i32) -> RoadWithNode {
         RoadWithNode {
@@ -216,6 +229,24 @@ mod test {
             network.bi_map.len(),
             "Hashmap should contain as many values, as there are nodes"
         );
+    }
+    #[test]
+    fn graph_bidirectional() {
+        let br = road_bidirectional();
+        let network = vec![
+            road_factory(&br, 1, 2),
+            road_factory(&br, 2, 3),
+            road_factory(&br, 3, 1),
+        ];
+        let network = RoadNetwork::<u32>::new(network.into_iter()).unwrap();
+
+        let a = petgraph::dot::Dot::with_config(
+            &network.network,
+            &[petgraph::dot::Config::EdgeNoLabel],
+        );
+        println!("{:?}", a); // use this tool to visualize https://dreampuf.github.io/GraphvizOnline/
+        assert_eq!(network.network.node_count(),network.bi_map.len());
+        assert_eq!(network.network.edge_count(),network.bi_map.len()*3,"edge count should be twice as high in a fully bi-directional road network");
     }
 
     #[test]
@@ -284,7 +315,6 @@ mod test {
         const _: () = assert!(NonNegativef64::new(0.0).is_some());
         const _: () = assert!(NonNegativef64::new(f64::INFINITY).is_some());
 
-
-        assert!(true,"does not really need to be a test");
+        assert!(true, "does not really need to be a test");
     }
 }
