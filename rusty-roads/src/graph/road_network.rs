@@ -187,6 +187,32 @@ mod test {
 
     use crate::Road;
 
+    macro_rules! big_graph_tests {
+        ($($name:ident <$t:tt>,)*) => {
+            $(
+                #[test]
+                #[should_panic(expected = "Road network is greater than maximum index of graph")]
+                fn $name() {
+                    let r = road();
+                    let roads = vec![road_factory(&r, 1, 1); $t ::MAX as usize];
+                    let roads = roads.into_iter().enumerate().map(|(i, r)| RoadWithNode {
+                        road: r.road,
+                        source: i as i32,
+                        target: r.target,
+                    });
+                    let _big_graph = RoadNetwork::<$t>::new(roads);
+                }
+            )
+            *
+        };
+    }
+
+    big_graph_tests! {
+        too_big_graphu8<u8>,
+        too_big_graphu16<u16>,
+        // too_big_graphu32<u32>, //! this takes a while to compute
+    }
+
     use super::{graph_from_road_network, NonNegativef64, RoadNetwork, RoadWithNode};
     // static mut ID: u64 = 1;
     fn road() -> Road {
@@ -310,18 +336,18 @@ mod test {
             "No path should be possible between disconnected graphs"
         );
     }
-    #[test]
-    #[should_panic(expected="Road network is greater than maximum index of graph")]
-    fn too_big_graph() {
-        let r = road();
-        let roads = vec![road_factory(&r, 1, 1); u8::MAX as usize + 1];
-        let roads = roads.into_iter().enumerate().map(|(i, r)| RoadWithNode {
-            road: r.road,
-            source: i as i32,
-            target: r.target,
-        });
-        let _big_graph = RoadNetwork::<u8>::new(roads);
-    }
+    // #[test]
+    // #[should_panic(expected = "Road network is greater than maximum index of graph")]
+    // fn too_big_graph() {
+    //     let r = road();
+    //     let roads = vec![road_factory(&r, 1, 1); u8::MAX as usize + 1];
+    //     let roads = roads.into_iter().enumerate().map(|(i, r)| RoadWithNode {
+    //         road: r.road,
+    //         source: i as i32,
+    //         target: r.target,
+    //     });
+    //     let _big_graph = RoadNetwork::<u8>::new(roads);
+    // }
 
     #[test]
     #[ignore = "deprecated function"]
@@ -339,7 +365,6 @@ mod test {
         assert_eq!(graph.edge_count(), 3, "expected a graph with 3 edges");
         assert_eq!(graph.node_count(), 3, "expected a graph with 3 nodes");
     }
-
 
     #[test]
     #[ignore = "deprecated function"]
