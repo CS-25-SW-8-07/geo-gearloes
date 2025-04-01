@@ -1,11 +1,7 @@
 use geo::GeodesicArea;
-use geo::{Distance, Geodesic, Haversine, Scale};
+use geo::Scale;
 use geo_types::LineString;
-use geo_types::Point;
-use geo_types::{Coord, Rect, coord};
-use proj4rs;
-use proj4rs::proj::Proj;
-use proj4rs::transform::transform;
+use geo_types::{Coord, Rect};
 use rand::prelude::*;
 use rstar::AABB;
 use rusty_roads::AnonymityConf;
