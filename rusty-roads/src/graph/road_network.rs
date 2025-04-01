@@ -116,7 +116,6 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
         Some((NonNegativef64::try_from(total_cost)?, ids))
     }
 
-    /// The point where a given node lies
     fn point_from_node(&self, id: NodeId) -> Option<Point> {
         let a = self.bi_map.get_by_left(&id)?;
         let io = self
@@ -133,7 +132,6 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
         let avg_x: f64 = xs.into_iter().sum::<f64>() / size_x;
         let avg_y = ys.into_iter().sum::<f64>() / size_y;
         Some(Point::new(avg_x, avg_y))
-        // todo!()
     }
 }
 
@@ -153,11 +151,9 @@ impl NonNegativef64 {
 mod test {
     use std::u8;
 
-    use geo::line_measures::LengthMeasurable;
     use geo::{Distance, Point};
     use geo_types::{coord, LineString};
 
-    use crate::graph::road_network::NodeId;
     use crate::Road;
 
     macro_rules! big_graph_tests {
