@@ -147,6 +147,13 @@ impl NonNegativef64 {
         }
     }
 }
+const _: () = assert!(NonNegativef64::try_from(-0.0).is_none());
+const _: () = assert!(NonNegativef64::try_from(-1.0).is_none());
+const _: () = assert!(NonNegativef64::try_from(f64::NAN).is_none());
+const _: () = assert!(NonNegativef64::try_from(f64::NEG_INFINITY).is_none());
+const _: () = assert!(NonNegativef64::try_from(0.0 - f64::EPSILON).is_none());
+const _: () = assert!(NonNegativef64::try_from(0.0).is_some());
+const _: () = assert!(NonNegativef64::try_from(f64::INFINITY).is_some());
 
 #[cfg(test)]
 mod test {
@@ -304,18 +311,6 @@ mod test {
             res.is_none(),
             "No path should be possible between disconnected graphs"
         );
-    }
-    #[test]
-    fn non_negative() {
-        const _: () = assert!(NonNegativef64::try_from(-0.0).is_none());
-        const _: () = assert!(NonNegativef64::try_from(-1.0).is_none());
-        const _: () = assert!(NonNegativef64::try_from(f64::NAN).is_none());
-        const _: () = assert!(NonNegativef64::try_from(f64::NEG_INFINITY).is_none());
-        const _: () = assert!(NonNegativef64::try_from(0.0 - f64::EPSILON).is_none());
-        const _: () = assert!(NonNegativef64::try_from(0.0).is_some());
-        const _: () = assert!(NonNegativef64::try_from(f64::INFINITY).is_some());
-
-        assert!(true, "does not really need to be a test");
     }
 
     #[test]
