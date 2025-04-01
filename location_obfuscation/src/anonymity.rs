@@ -5,26 +5,14 @@ use geo_types::{Coord, Rect};
 use rand::prelude::*;
 use rstar::AABB;
 use rusty_roads::AnonymityConf;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum AnonymityError {
+    #[error("Float could not be converted")]
     ConversionError,
 }
 
-impl std::fmt::Display for AnonymityError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            AnonymityError::ConversionError => write!(f, "Could not convert float to integer"),
-        }
-    }
-}
-impl std::error::Error for AnonymityError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
-
-/// Will evaluate whether the route is anonymous based on configurations and k_s provided by the current_ks.
 /// The input [`current_k`] should only contain k's for rows that are being visited.
 pub fn evaluate_route_anonymity<'a>(
     anon_conf: &AnonymityConf,
