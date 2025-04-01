@@ -9,26 +9,48 @@ use comms::Parquet;
 // http://127.0.0.1:8080/get_roads_in_bbox.parquet?lon1=11.537934&lat1=55.2575578&lon2=11.536422&lat2=55.2506889
 // http://127.0.0.1:8080/get_roads_in_bbox.parquet?lon1=11.537934&lat1=55.2575578&lon2=11.5175512&lat2=55.2537322
 
-#[get("/get_roads_in_bbox.parquet")]
-async fn get_roads_in_bbox(pool: web::Data<PgPool>, query: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
-    let lon1 = query.get("lon1").and_then(|lon1_str| lon1_str.parse::<f64>().ok()).unwrap_or_default();
-    let lat1 = query.get("lat1").and_then(|lat1_str| lat1_str.parse::<f64>().ok()).unwrap_or_default();
-    let lon2 = query.get("lon2").and_then(|lon2_str| lon2_str.parse::<f64>().ok()).unwrap_or_default();
-    let lat2 = query.get("lat2").and_then(|lat2_str| lat2_str.parse::<f64>().ok()).unwrap_or_default();
+fn get_bbox(query: &std::collections::HashMap<String, String>) -> ((f64, f64), (f64, f64)) {
+    let get_coord = |key: &str| {
+        query.get(key)
+            .and_then(|val| val.parse::<f64>().ok())
+            .unwrap_or_default()
+    };
 
-    let bbox = ((lon1, lat1), (lon2, lat2));
+    let lon1 = get_coord("lon1");
+    let lat1 = get_coord("lat1");
+    let lon2 = get_coord("lon2");
+    let lat2 = get_coord("lat2");
+
+    ((lon1, lat1), (lon2, lat2))
+}
+
+#[get("/get_roads_in_bbox.parquet")]  
+async fn get_roads_in_bbox(pool: web::Data<PgPool>, query: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
+    let bbox = get_bbox(&query);
     let conn = pool.acquire().await.unwrap();
 
     match atlas::box_query(conn, bbox, None).await {
         Ok(roads) => {
             let result = roads.into_iter().collect::<Roads>().to_parquet().expect("Could not compile to parquet");
-            HttpResponse::Ok().content_type("text/plain").body(result)
+            HttpResponse::Ok().content_type("application/octet-stream").body(result) // return a binary type
         },
         Err(e) => HttpResponse::InternalServerError().body(format!("Error: {}", e)),
     }
 }
+/*
+#[get("/get_visits_in_bbox.parquet")]  
+async fn get_roads_in_bbox(pool: web::Data<PgPool>, query: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
+    let bbox = get_bbox(&query);
+    let conn = pool.acquire().await.unwrap();
 
-// ##[get("/get_visits_in_bbox.parquet")]
+    match atlas::box_query(conn, bbox, None).await {
+        Ok() => {
+
+        },
+        Err(e) => HttpResponse::InternalServerError().body(format!("Error: {}", e)),
+    }
+}
+ */
 
 #[get("/test")]
 async fn testing123(pool: web::Data<PgPool>) -> impl Responder {
