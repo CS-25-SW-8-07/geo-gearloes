@@ -1,3 +1,5 @@
+use std::num::TryFromIntError;
+
 use geo::GeodesicArea;
 use geo::Scale;
 use geo_types::LineString;
@@ -17,22 +19,16 @@ pub enum AnonymityError {
 pub fn evaluate_route_anonymity<'a>(
     anon_conf: &AnonymityConf,
     current_k: impl IntoIterator<Item = impl Into<&'a f64> + Copy> + Clone,
-) -> Result<bool, AnonymityError> {
+) -> Result<bool, TryFromIntError> {
     let min_per = anon_conf.min_k_percentile;
     let min_k = anon_conf.min_k;
 
-    let count: u64 = current_k
-        .clone()
-        .into_iter()
-        .count()
-        .try_into()
-        .map_err(|_| AnonymityError::ConversionError)?;
+    let count: u64 = current_k.clone().into_iter().count().try_into()?;
     let below_k: u64 = current_k
         .into_iter()
         .filter(|x| *(*x).into() >= min_k as f64)
         .count()
-        .try_into()
-        .map_err(|_| AnonymityError::ConversionError)?;
+        .try_into()?;
 
     let percentile = below_k as f64 / count as f64;
 
@@ -40,10 +36,7 @@ pub fn evaluate_route_anonymity<'a>(
 }
 
 /// Function which calculates the aabb of a trajectory based on user configuration.
-pub fn calculate_aabb(
-    anon_conf: &AnonymityConf,
-    trajectory: &LineString<f64>,
-) -> Result<AABB<Coord>, AnonymityError> {
+pub fn calculate_aabb(anon_conf: &AnonymityConf, trajectory: &LineString<f64>) -> AABB<Coord> {
     let mut aabb: AABB<Coord> = AABB::from_points(trajectory);
 
     let min_size = anon_conf.min_area_size;
@@ -86,7 +79,7 @@ pub fn calculate_aabb(
         aabb = AABB::from_corners(rectangle.min(), rectangle.max());
     }
 
-    Ok(aabb)
+    aabb
 }
 
 #[cfg(test)]
