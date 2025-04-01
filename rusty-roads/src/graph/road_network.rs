@@ -116,17 +116,16 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
         Some((NonNegativef64::try_from(total_cost)?, ids))
     }
 
-    
     pub fn point_from_node(&self, id: NodeId) -> Option<Point> {
         let a = self.bi_map.get_by_left(&id)?;
         let io = self
             .network
             .edges_directed(*a, Outgoing)
-            .filter_map(|(_,_,e)| e.geom.0.first())
+            .filter_map(|(_, _, e)| e.geom.0.first())
             .chain(
                 self.network
                     .edges_directed(*a, Incoming)
-                    .filter_map(|(_,_,e)| e.geom.0.last()),
+                    .filter_map(|(_, _, e)| e.geom.0.last()),
             );
         let (xs, ys): (Vec<f64>, Vec<f64>) = io.map(|c| c.x_y()).unzip();
         let (size_x, size_y) = (xs.len() as f64, ys.len() as f64);
