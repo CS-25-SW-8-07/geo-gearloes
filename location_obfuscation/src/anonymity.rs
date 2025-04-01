@@ -36,7 +36,11 @@ pub fn evaluate_route_anonymity<'a>(
 }
 
 /// Function which calculates the aabb of a trajectory based on user configuration.
-pub fn calculate_aabb(anon_conf: &AnonymityConf, trajectory: &LineString<f64>) -> AABB<Coord> {
+pub fn calculate_aabb(anon_conf: &AnonymityConf, trajectory: &LineString<f64>) -> Option<AABB<Coord>> {
+    if trajectory.0.is_empty() {
+        return None;
+    }
+
     let mut aabb: AABB<Coord> = AABB::from_points(trajectory);
 
     let min_size = anon_conf.min_area_size;
@@ -79,7 +83,7 @@ pub fn calculate_aabb(anon_conf: &AnonymityConf, trajectory: &LineString<f64>) -
         aabb = AABB::from_corners(rectangle.min(), rectangle.max());
     }
 
-    aabb
+    Some(aabb)
 }
 
 #[cfg(test)]
