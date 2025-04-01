@@ -18,7 +18,7 @@ pub enum LocationObfuscationError {
 
 pub fn obfuscate_points<T, U, W, V>(
     points: T,
-    roads: V,
+    roads: &V,
 ) -> Result<Vec<Point>, LocationObfuscationError>
 where
     T: Iterator<Item = U> + Clone,
@@ -128,6 +128,7 @@ mod tests {
         }
 
         fn nearest_neighbor_road(&self, point: Point<f64>, id: Id) -> Option<Point> {
+            let id = self.ids.iter().position(|x| *x == id).unwrap();
             self.roads[id as usize]
                 .points()
                 .fold(None, |acc, x| {
@@ -151,7 +152,7 @@ mod tests {
 
         let points = vec![point! { x: 1.5, y: 2.3 }];
 
-        let points = obfuscate_points(points.into_iter(), road_network).unwrap();
+        let points = obfuscate_points(points.into_iter(), &road_network).unwrap();
 
         assert_eq!(point! { x: 2.0 , y: 2.0 }, points[0]);
     }
@@ -162,7 +163,7 @@ mod tests {
 
         let points: Vec<Point> = vec![];
 
-        let points = obfuscate_points(points.into_iter(), road_network);
+        let points = obfuscate_points(points.into_iter(), &road_network);
 
         assert!(points.is_err_and(|x| x == LocationObfuscationError::NoPointsProvided))
     }
