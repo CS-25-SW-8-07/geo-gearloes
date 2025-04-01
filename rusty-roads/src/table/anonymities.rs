@@ -8,5 +8,5 @@ pub struct Anonymities {
 pub struct AnonymityConf {
     pub min_k: u32,
     pub min_k_percentile: f64,
-    pub min_area_size: f64,
+    pub min_area_size: f64, // In meter
 }

@@ -68,6 +68,7 @@ mod tests {
     use super::*;
     use geo_types::geometry::LineString;
     use geo_types::{Coord, Point, coord, line_string, point};
+    use rstar::primitives::GeomWithData;
 
     struct Roads {
         ids: Vec<Id>,

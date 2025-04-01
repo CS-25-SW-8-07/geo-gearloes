@@ -1,14 +1,33 @@
+use geo::GeodesicArea;
+use geo::{Distance, Geodesic, Haversine, Scale};
+use geo_types::LineString;
+use geo_types::Point;
+use geo_types::{Coord, Rect, coord};
+use proj4rs;
+use proj4rs::proj::Proj;
+use proj4rs::transform::transform;
+use rand::prelude::*;
+use rstar::AABB;
 use rusty_roads::AnonymityConf;
 
 #[derive(Debug)]
 pub enum AnonymityError {
     ConversionError,
+    TrajectoryNotInEnvelope,
+    PointTransform(String),
 }
 
 impl std::fmt::Display for AnonymityError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             AnonymityError::ConversionError => write!(f, "Could not convert float to integer"),
+            AnonymityError::TrajectoryNotInEnvelope => {
+                write!(
+                    f,
+                    "Trajectory is not fully contained in the provided bounding area"
+                )
+            }
+            AnonymityError::PointTransform(_) => write!(f, "Could not transform point"),
         }
     }
 }
@@ -20,22 +39,22 @@ impl std::error::Error for AnonymityError {
 
 /// Will evaluate whether the route is anonymous based on configurations and k_s provided by the current_ks.
 /// The input [`current_k`] should only contain k's for rows that are being visited.
-pub fn evaluate_route_anonymity(
+pub fn evaluate_route_anonymity<'a>(
     anon_conf: &AnonymityConf,
-    current_k: impl IntoIterator<Item = impl Into<f64>> + std::marker::Copy,
+    current_k: impl IntoIterator<Item = impl Into<&'a f64> + Copy> + Clone,
 ) -> Result<bool, AnonymityError> {
     let min_per = anon_conf.min_k_percentile;
     let min_k = anon_conf.min_k;
 
     let count: u64 = current_k
+        .clone()
         .into_iter()
         .count()
         .try_into()
         .map_err(|_| AnonymityError::ConversionError)?;
     let below_k: u64 = current_k
         .into_iter()
-        .map(|x| x.into())
-        .filter(|x| *x < min_k as f64)
+        .filter(|x| *(*x).into() >= min_k as f64)
         .count()
         .try_into()
         .map_err(|_| AnonymityError::ConversionError)?;
@@ -45,4 +64,146 @@ pub fn evaluate_route_anonymity(
     Ok(percentile > min_per)
 }
 
+pub fn calculate_aabb(
+    anon_conf: &AnonymityConf,
+    trajectory: &LineString<f64>,
+) -> Result<AABB<Coord>, AnonymityError> {
+    let mut aabb: AABB<Coord> = AABB::from_points(trajectory);
+
+    let min_size = anon_conf.min_area_size;
+
+    let mut rectangle = Rect::new(aabb.lower(), aabb.upper());
+
+    let lower = aabb.lower();
+    let upper = aabb.upper();
+
+    let mut rng = rand::rng();
+
+    let aspect_ratio: f64 = rng.random_range(0.1..=0.9);
+
+    let scalar = min_size.sqrt()
+        / (rectangle.geodesic_area_unsigned().sqrt()
+            * aspect_ratio.sqrt()
+            * (1. - aspect_ratio).sqrt());
+
+    if scalar > 1.0 {
+        let mut rectangle = Rect::new(lower, upper);
+
+        let point: (f64, f64) = (
+            rng.random_range(rectangle.min().x..rectangle.max().x),
+            rng.random_range(rectangle.min().y..rectangle.max().y),
+        );
+
+        rectangle.scale_around_point_mut(
+            scalar * aspect_ratio,
+            scalar * (1. - aspect_ratio),
+            point,
+        );
+
+        // let long_offset = (rectangle.min().x - lower.x)
+        //     .abs()
+        //     .min((rectangle.max().x - upper.x).abs());
+        // let lat_offset = (rectangle.min().y - lower.y)
+        //     .abs()
+        //     .min((rectangle.max().y - upper.y).abs());
+
+        // let long_rand: f64 = rng.random_range(-1.0..1.0);
+        // let lat_rand: f64 = rng.random_range(-1.0..1.0);
+
+        // rectangle.set_min((
+        //     rectangle.min().x + long_offset * long_rand,
+        //     rectangle.min().y + lat_offset * lat_rand,
+        // ));
+        // rectangle.set_max((
+        //     rectangle.max().x + long_offset * long_rand * -1.,
+        //     rectangle.max().y + lat_offset * lat_rand * -1.,
+        // ));
+
+        // let scalar = min_size.sqrt() / rectangle.geodesic_area_unsigned().sqrt();
+        // if scalar > 1.0 {
+        //     rectangle = rectangle.scale(scalar);
+        // }
+        aabb = AABB::from_corners(rectangle.min(), rectangle.max());
+    }
+
+    Ok(aabb)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use geo::Contains;
+
+    #[test]
+    fn anonymity_percentile_succes() {
+        let ks: Vec<f64> = vec![5.7, 5.4, 1.0, 2.0, 3.0];
+        let conf = AnonymityConf {
+            min_k: 3,
+            min_k_percentile: 0.5,
+            min_area_size: 2.0,
+        };
+
+        let result = evaluate_route_anonymity(&conf, ks.iter()).unwrap();
+
+        assert_eq!(result, true)
+    }
+
+    #[test]
+    fn anonymity_percentile_fail() {
+        let ks: Vec<f64> = vec![5.7, 5.4, 1.0, 2.0, 3.0];
+        let conf = AnonymityConf {
+            min_k: 4,
+            min_k_percentile: 0.5,
+            min_area_size: 2.0,
+        };
+
+        let result = evaluate_route_anonymity(&conf, ks.iter()).unwrap();
+
+        assert_eq!(result, false)
+    }
+
+    #[test]
+    fn aabb_creation_test() {
+        let ks: LineString<f64> = vec![(9.991835, 57.012622), (9.990884, 57.013152)].into();
+
+        let conf = AnonymityConf {
+            min_k: 3,
+            min_k_percentile: 0.5,
+            min_area_size: 5000.0_f64.powi(2),
+        };
+
+        let result = calculate_aabb(&conf, &ks).unwrap();
+
+        let rectangle = Rect::new(result.lower(), result.upper());
+
+        let area = rectangle.geodesic_area_unsigned();
+
+        dbg!(&result);
+        dbg!(&area);
+
+        assert!(false);
+
+        assert!(area.ge(&conf.min_area_size));
+
+        assert!(Rect::new(result.lower(), result.upper()).contains(&ks))
+    }
+
+    #[test]
+    fn aabb_no_change() {
+        let ks: LineString<f64> = vec![(9.68, 57.10), (10.17, 56.95)].into();
+
+        let conf = AnonymityConf {
+            min_k: 3,
+            min_k_percentile: 0.5,
+            min_area_size: 10.0_f64.powi(2),
+        };
+
+        let result = calculate_aabb(&conf, &ks).unwrap();
+
+        assert_eq!(
+            AABB::from_corners((9.68, 57.10).into(), (10.17, 56.95).into()),
+            result
+        );
+    }
+}
 

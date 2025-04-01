@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+geo = "0.30.0"
 geo-types = { version = "0.7.15", features = ["multithreading", "use-rstar_0_12"] }
+num-traits = "0.2.19"
+proj4rs = { version = "0.1.5", features = ["geo-types"] }
+rand = "0.9.0"
 rayon = "1.10.0"
 rstar = "0.12.2"
 rusty-roads = { path = "../rusty-roads" }
