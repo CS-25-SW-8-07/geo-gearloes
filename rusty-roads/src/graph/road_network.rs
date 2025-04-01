@@ -82,16 +82,6 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
         })
     }
 
-    // fn sources<I>(&self, s: &NodeId) -> Option<impl Iterator<Item=i32>>
-    // where
-    //     I: Iterator<Item = i32 >,
-    // {
-    //     let idx = self.index.get(s)?;
-    //     let a = self.network.edges(*idx).map(|(_,_,r)| 1);
-    //     // Some(a)
-    //     todo!()
-    // }
-
     pub fn path_find<F, H>(
         &self,
         source: NodeId,
@@ -123,7 +113,7 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
             .into_iter()
             .map(|idx| *self.network.node_weight(idx))
             .collect::<Vec<_>>();
-        Some((NonNegativef64::new(total_cost)?, ids))
+        Some((NonNegativef64::try_from(total_cost)?, ids))
     }
 
     /// The point where a given node lies
@@ -138,8 +128,6 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
                     .edges_directed(*a, Incoming)
                     .filter_map(|e| e.2.geom.0.last()),
             );
-        // .map(|coord| Point::from(*coord))
-        // .fold((0,Coord{ x: 0, y: 0 }), |acc,x|);
         let (xs, ys): (Vec<f64>, Vec<f64>) = io.map(|c| c.x_y()).unzip();
         let (size_x, size_y) = (xs.len() as f64, ys.len() as f64);
         let avg_x: f64 = xs.into_iter().sum::<f64>() / size_x;
@@ -153,7 +141,7 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
 pub struct NonNegativef64(f64);
 
 impl NonNegativef64 {
-    pub const fn new(num: f64) -> Option<NonNegativef64> {
+    pub const fn try_from(num: f64) -> Option<NonNegativef64> {
         match num {
             n if n.signum() == 1.0 => Some(NonNegativef64(n)),
             _ => None,
@@ -161,47 +149,6 @@ impl NonNegativef64 {
     }
 }
 
-#[deprecated]
-pub fn graph_from_road_network<Idx: IndexType>(
-    road_network: Vec<RoadWithNode>,
-) -> Option<RoadNetworkGraph<Idx>> {
-    assert!(
-        <Idx as petgraph::adj::IndexType>::max() > Idx::new(road_network.len()),
-        "Road network is greater than maximum index of graph"
-    ); //TODO better error handling
-       // let mut graph = MatrixGraph::<i32, &Road>::new();
-       // let mut graph = RoadNetwork::<i32>::new();
-    let mut graph = RoadNetworkGraph::<Idx>::with_capacity(road_network.len());
-    let mut map = HashMap::<i32, NodeIndex<Idx>>::with_capacity(road_network.len());
-    for &RoadWithNode {
-        road,
-        source,
-        target,
-    } in &road_network
-    {
-        let s = *map.entry(source).or_insert_with(|| graph.add_node(source));
-        let dest = *map.entry(target).or_insert_with(|| graph.add_node(target));
-        // let s = graph.add_node(source);
-        // let dest = graph.add_node(target);
-        match road.direction {
-            Direction::Forward => graph.add_edge(s, dest, road),
-            Direction::Backward => graph.add_edge(dest, s, road),
-            Direction::Bidirectional => {
-                graph.add_edge(s, dest, road);
-                graph.add_edge(dest, s, road);
-            }
-        };
-        // let cost = graph.add_edge(s, dest, road);
-    }
-    debug_assert!(
-        graph.edge_count() >= road_network.len(),
-        "expected a graph with {} edges, got {} edges",
-        graph.edge_count(),
-        road_network.len()
-    );
-
-    Some(graph)
-}
 
 #[cfg(test)]
 mod test {
@@ -240,7 +187,7 @@ mod test {
         // too_big_graphu32<u32>, //! this takes a while to compute
     }
 
-    use super::{graph_from_road_network, NonNegativef64, RoadNetwork, RoadWithNode};
+    use super::{NonNegativef64, RoadNetwork, RoadWithNode};
     // static mut ID: u64 = 1;
     fn road() -> Road {
         Road {
@@ -363,47 +310,15 @@ mod test {
             "No path should be possible between disconnected graphs"
         );
     }
-
-    #[test]
-    #[ignore = "deprecated function"]
-    fn graph_construct() {
-        let r = road();
-        let network = vec![
-            road_factory(&r, 1, 2),
-            road_factory(&r, 2, 3),
-            road_factory(&r, 3, 1),
-        ];
-
-        let graph = graph_from_road_network::<u32>(network).expect("failed to construct graph");
-        let a = petgraph::dot::Dot::with_config(&graph, &[petgraph::dot::Config::EdgeNoLabel]);
-        println!("{:?}", a); // use this tool to visualize https://dreampuf.github.io/GraphvizOnline/
-        assert_eq!(graph.edge_count(), 3, "expected a graph with 3 edges");
-        assert_eq!(graph.node_count(), 3, "expected a graph with 3 nodes");
-    }
-
-    #[test]
-    #[ignore = "deprecated function"]
-    fn get_road() {
-        let r = road();
-        let network = vec![
-            road_factory(&r, 1, 2),
-            road_factory(&r, 2, 3),
-            road_factory(&r, 3, 1),
-        ];
-
-        let graph = graph_from_road_network::<u32>(network).unwrap();
-
-        // graph.
-    }
     #[test]
     fn non_negative() {
-        const _: () = assert!(NonNegativef64::new(-0.0).is_none());
-        const _: () = assert!(NonNegativef64::new(-1.0).is_none());
-        const _: () = assert!(NonNegativef64::new(f64::NAN).is_none());
-        const _: () = assert!(NonNegativef64::new(f64::NEG_INFINITY).is_none());
-        const _: () = assert!(NonNegativef64::new(0.0 - f64::EPSILON).is_none());
-        const _: () = assert!(NonNegativef64::new(0.0).is_some());
-        const _: () = assert!(NonNegativef64::new(f64::INFINITY).is_some());
+        const _: () = assert!(NonNegativef64::try_from(-0.0).is_none());
+        const _: () = assert!(NonNegativef64::try_from(-1.0).is_none());
+        const _: () = assert!(NonNegativef64::try_from(f64::NAN).is_none());
+        const _: () = assert!(NonNegativef64::try_from(f64::NEG_INFINITY).is_none());
+        const _: () = assert!(NonNegativef64::try_from(0.0 - f64::EPSILON).is_none());
+        const _: () = assert!(NonNegativef64::try_from(0.0).is_some());
+        const _: () = assert!(NonNegativef64::try_from(f64::INFINITY).is_some());
 
         assert!(true, "does not really need to be a test");
     }
@@ -438,10 +353,7 @@ mod test {
                 Point::new(first_lon, first_lat), 
                 Point::new(last_lon, last_lat),
             );
-            NonNegativef64::new(dist).expect("distance should always be nonnegative")
-        }
-        fn heuristic<'a>(network: RoadNetwork<'a, u8>, id: NodeId) -> NonNegativef64 {
-            todo!()
+            NonNegativef64::try_from(dist).expect("distance should always be nonnegative")
         }
         // let cost_fn = |p:&Road| p.geom.length(metric_space)
         // let cost_fn = |p:&Road| Euclidean.distance(p.geom.0.first().unwrap(), p.geom.0.last().unwrap());
@@ -454,7 +366,7 @@ mod test {
                 target,
                 |r| cost_fn(r),
                 |id| {
-                    NonNegativef64::new(Haversine.distance(
+                    NonNegativef64::try_from(Haversine.distance(
                         network.point_from_node(id).unwrap(),
                         network.point_from_node(target).unwrap(),
                     ))
