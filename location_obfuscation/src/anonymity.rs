@@ -64,6 +64,7 @@ pub fn evaluate_route_anonymity<'a>(
     Ok(percentile > min_per)
 }
 
+/// Function which calculates the aabb of a trajectory based on user configuration.
 pub fn calculate_aabb(
     anon_conf: &AnonymityConf,
     trajectory: &LineString<f64>,
@@ -79,15 +80,20 @@ pub fn calculate_aabb(
 
     let mut rng = rand::rng();
 
-    let aspect_ratio: f64 = rng.random_range(0.1..=0.9);
+    if rectangle.geodesic_area_unsigned() < min_size {
+        // Calculate the minimum aspect ratio scaling (scalar * aspect_ratio must not be less than 1)
+        let min_aspect_ratio: f64 =
+            0.5 / (min_size.sqrt() / rectangle.geodesic_area_unsigned().sqrt());
 
-    let scalar = (min_size.sqrt()
-        / (rectangle.geodesic_area_unsigned().sqrt()
-            * aspect_ratio.sqrt()
-            * (1. - aspect_ratio).sqrt()))
-    .ceil();
+        // Create random scaleable aspect ratio for hiding how the trajectory looks.
+        let aspect_ratio: f64 = rng.random_range(min_aspect_ratio..=(1.0 - min_aspect_ratio));
 
-    if scalar > 1.0 {
+        // Calculate how much to scale the aabb based on anonymity configuration
+        let scalar = min_size.sqrt()
+            / (rectangle.geodesic_area_unsigned().sqrt()
+                * aspect_ratio.sqrt()
+                * (1. - aspect_ratio).sqrt());
+
         let mut rectangle = Rect::new(lower, upper);
 
         let point: (f64, f64) = (
@@ -147,14 +153,14 @@ mod tests {
         let conf = AnonymityConf {
             min_k: 3,
             min_k_percentile: 0.5,
-            min_area_size: 5000.0_f64.powi(2),
+            min_area_size: 3500.0,
         };
 
         let result = calculate_aabb(&conf, &ks).unwrap();
 
         let rectangle = Rect::new(result.lower(), result.upper());
 
-        let area = rectangle.geodesic_area_unsigned();
+        let area = rectangle.geodesic_area_unsigned().round();
 
         assert!(area.ge(&conf.min_area_size));
 
