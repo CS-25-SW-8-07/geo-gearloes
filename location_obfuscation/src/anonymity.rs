@@ -9,6 +9,8 @@ use rstar::AABB;
 use rusty_roads::AnonymityConf;
 use thiserror::Error;
 
+const HALF: f64 = 0.5;
+
 #[derive(Debug, Error)]
 pub enum AnonymityError {
     #[error("Float could not be converted")]
@@ -36,7 +38,10 @@ pub fn evaluate_route_anonymity<'a>(
 }
 
 /// Function which calculates the aabb of a trajectory based on user configuration.
-pub fn calculate_aabb(anon_conf: &AnonymityConf, trajectory: &LineString<f64>) -> Option<AABB<Coord>> {
+pub fn calculate_aabb(
+    anon_conf: &AnonymityConf,
+    trajectory: &LineString<f64>,
+) -> Option<AABB<Coord>> {
     if trajectory.0.is_empty() {
         return None;
     }
@@ -55,8 +60,7 @@ pub fn calculate_aabb(anon_conf: &AnonymityConf, trajectory: &LineString<f64>) -
     if rectangle.geodesic_area_unsigned() < min_size {
         // Calculate the minimum aspect ratio scaling (scalar * aspect_ratio must not be less than 1)
         let min_aspect_ratio: f64 =
-            0.5 / (min_size.sqrt() / rectangle.geodesic_area_unsigned().sqrt());
-
+            HALF / (min_size.sqrt()
         // Create random scaleable aspect ratio for hiding how the trajectory looks.
         let aspect_ratio: f64 = rng.random_range(min_aspect_ratio..=(1.0 - min_aspect_ratio));
 
