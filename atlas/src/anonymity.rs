@@ -11,6 +11,22 @@ struct Anonymity {
     current_k: f64,
 }
 
+#[allow(dead_code)]
+pub struct Probability(pub f64);
+
+impl TryFrom<f64> for Probability {
+    type Error = &'static str;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.ge(&0.0) && value.le(&1.0) {
+            Ok(Probability(value))
+        } else {
+            Err("Provided value that is not inbetween 0 and 1")
+        }
+    }
+}
+
+#[allow(dead_code)]
 pub async fn box_anonymity_query(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
@@ -63,10 +79,11 @@ GROUP BY road_id
     })
 }
 
+#[allow(dead_code)]
 pub async fn box_add_unknownvisits(
     mut conn: PoolConnection<Postgres>,
     bbox: Bbox<f64>,
-    probability: f64,
+    probability: Probability,
 ) -> Result<(), DbError> {
     let ((minx, miny), (maxx, maxy)) = bbox;
 
@@ -82,7 +99,7 @@ SELECT id, NOW(), $5 FROM roadnetwork;");
         .bind(miny)
         .bind(maxx)
         .bind(maxy)
-        .bind(probability)
+        .bind(probability.0)
         .execute(&mut *conn)
         .await
         .map_err(DbError::Sqlx)?;
@@ -90,6 +107,7 @@ SELECT id, NOW(), $5 FROM roadnetwork;");
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn add_trajectory(
     mut conn: PoolConnection<Postgres>,
     traj: Vec<u8>,
