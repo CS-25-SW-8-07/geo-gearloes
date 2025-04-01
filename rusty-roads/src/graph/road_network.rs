@@ -149,7 +149,6 @@ impl NonNegativef64 {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use std::u8;
@@ -188,7 +187,6 @@ mod test {
     }
 
     use super::{NonNegativef64, RoadNetwork, RoadWithNode};
-    // static mut ID: u64 = 1;
     fn road() -> Road {
         Road {
             id: 1,
@@ -347,8 +345,9 @@ mod test {
             let (first_lon, first_lat) = r.geom.0.first().unwrap().x_y();
             let (last_lon, last_lat) = r.geom.0.last().unwrap().x_y();
 
-            let dist = Haversine.distance( //? the total cost will not make a lot of sense using, it is just an example
-                Point::new(first_lon, first_lat), 
+            let dist = Haversine.distance(
+                //? the total cost will not make a lot of sense using, it is just an example
+                Point::new(first_lon, first_lat),
                 Point::new(last_lon, last_lat),
             );
             NonNegativef64::try_from(dist).expect("distance should always be nonnegative")
@@ -370,7 +369,7 @@ mod test {
             )
             .expect("expected to find a path");
 
-            assert!(cost.0>0.0);
-            assert_eq!(path, vec![1, 2, 5])
+        assert!(cost.0 > 0.0);
+        assert_eq!(path, vec![1, 2, 5])
     }
 }
