@@ -19,7 +19,9 @@ impl RoadIndex {
         &'a self,
         aabb: &AABB<Point>,
     ) -> impl Iterator<Item = &'a GeomWithData<LineString<f64>, Id>> {
-        self.index.locate_in_envelope(&aabb).into_iter()
+        self.index
+            .locate_in_envelope_intersecting(&aabb)
+            .into_iter()
     }
 
     pub fn from_ids_and_roads(ids: &[u64], roads: &[LineString<f64>]) -> RoadIndex {

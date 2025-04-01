@@ -134,3 +134,4 @@ FROM trajectory as t, intersected_roads as ir;",
 
     Ok(())
 }
+

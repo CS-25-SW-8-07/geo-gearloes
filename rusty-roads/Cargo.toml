@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+derive_more = { version = "2.0.1", features = ["into"] }
 geo-types = { version = "0.7.15", features = ["multithreading", "use-rstar_0_12"] }
 rstar = "0.12.2"
 comms = { version = "0.1.0", path = "../comms" }
@@ -15,3 +16,6 @@ itertools = "0.14.0"
 parquet = "54.2.0"
 thiserror = "2.0.11"
 wkb = "0.8.0"
+petgraph = "0.7.1"
+bimap = "0.6.3"
+geo = "0.30.0"
