@@ -356,6 +356,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "bimap"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -467,7 +473,7 @@ dependencies = [
  "comms-macros",
  "geo-traits",
  "geo-types",
- "itertools",
+ "itertools 0.14.0",
  "parquet",
  "thiserror 2.0.12",
  "wkb",
@@ -662,6 +668,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "earcutr"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79127ed59a85d7687c409e9978547cffb7dc79675355ed22da6b66fd5f6ead01"
+dependencies = [
+ "itertools 0.11.0",
+ "num-traits",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -740,6 +756,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
+name = "fixedbitset"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
+
+[[package]]
 name = "flatbuffers"
 version = "24.12.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -758,6 +780,12 @@ dependencies = [
  "crc32fast",
  "miniz_oxide",
 ]
+
+[[package]]
+name = "float_next_after"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
 
 [[package]]
 name = "foldhash"
@@ -874,6 +902,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "geo"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4416397671d8997e9a3e7ad99714f4f00a22e9eaa9b966a5985d2194fc9e02e1"
+dependencies = [
+ "earcutr",
+ "float_next_after",
+ "geo-types",
+ "geographiclib-rs",
+ "i_overlay",
+ "log",
+ "num-traits",
+ "robust",
+ "rstar",
+ "spade",
+]
+
+[[package]]
 name = "geo-traits"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -884,15 +930,24 @@ dependencies = [
 
 [[package]]
 name = "geo-types"
-version = "0.7.15"
+version = "0.7.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bd1157f0f936bf0cd68dec91e8f7c311afe60295574d62b70d4861a1bfdf2d9"
+checksum = "62ddb1950450d67efee2bbc5e429c68d052a822de3aad010d28b351fbb705224"
 dependencies = [
  "approx",
  "num-traits",
  "rayon",
  "rstar",
  "serde",
+]
+
+[[package]]
+name = "geographiclib-rs"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6e5ed84f8089c70234b0a8e0aedb6dc733671612ddc0d37c6066052f9781960"
+dependencies = [
+ "libm",
 ]
 
 [[package]]
@@ -1030,6 +1085,50 @@ checksum = "589533453244b0995c858700322199b2becb13b627df2851f64a2775d024abcf"
 dependencies = [
  "windows-sys 0.59.0",
 ]
+
+[[package]]
+name = "i_float"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85df3a416829bb955fdc2416c7b73680c8dcea8d731f2c7aa23e1042fe1b8343"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "i_key_sort"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "347c253b4748a1a28baf94c9ce133b6b166f08573157e05afe718812bc599fcd"
+
+[[package]]
+name = "i_overlay"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0542dfef184afdd42174a03dcc0625b6147fb73e1b974b1a08a2a42ac35cee49"
+dependencies = [
+ "i_float",
+ "i_key_sort",
+ "i_shape",
+ "i_tree",
+ "rayon",
+]
+
+[[package]]
+name = "i_shape"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a38f5a42678726718ff924f6d4a0e79b129776aeed298f71de4ceedbd091bce"
+dependencies = [
+ "i_float",
+ "serde",
+]
+
+[[package]]
+name = "i_tree"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "155181bc97d770181cf9477da51218a19ee92a8e5be642e796661aee2b601139"
 
 [[package]]
 name = "iana-time-zone"
@@ -1227,6 +1326,15 @@ dependencies = [
  "hermit-abi 0.3.9",
  "libc",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "itertools"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
 ]
 
 [[package]]
@@ -1622,6 +1730,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
+name = "petgraph"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772"
+dependencies = [
+ "fixedbitset",
+ "indexmap",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1807,6 +1925,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "robust"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbf4a6aa5f6d6888f39e980649f3ad6b666acdce1d78e95b8a2cb076e687ae30"
+
+[[package]]
 name = "rstar"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1876,12 +2000,16 @@ checksum = "eded382c5f5f786b989652c49544c4877d9f015cc22e145a5ea8ea66c2921cd2"
 name = "rusty-roads"
 version = "0.1.0"
 dependencies = [
+ "bimap",
  "bytes",
  "comms",
+ "derive_more",
+ "geo",
  "geo-traits",
  "geo-types",
- "itertools",
+ "itertools 0.14.0",
  "parquet",
+ "petgraph",
  "rstar",
  "thiserror 2.0.12",
  "wkb",
@@ -1998,6 +2126,18 @@ checksum = "9f7916fc008ca5542385b89a3d3ce689953c143e9304a9bf8beec1de48994c0d"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "spade"
+version = "2.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ece03ff43cd2a9b57ebf776ea5e78bd30b3b4185a619f041079f4109f385034"
+dependencies = [
+ "hashbrown",
+ "num-traits",
+ "robust",
+ "smallvec",
 ]
 
 [[package]]
