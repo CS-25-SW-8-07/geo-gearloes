@@ -9,21 +9,12 @@ use rusty_roads::AnonymityConf;
 #[derive(Debug)]
 pub enum AnonymityError {
     ConversionError,
-    TrajectoryNotInEnvelope,
-    PointTransform(String),
 }
 
 impl std::fmt::Display for AnonymityError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             AnonymityError::ConversionError => write!(f, "Could not convert float to integer"),
-            AnonymityError::TrajectoryNotInEnvelope => {
-                write!(
-                    f,
-                    "Trajectory is not fully contained in the provided bounding area"
-                )
-            }
-            AnonymityError::PointTransform(_) => write!(f, "Could not transform point"),
         }
     }
 }
@@ -92,6 +83,7 @@ pub fn calculate_aabb(
 
         let mut rectangle = Rect::new(lower, upper);
 
+        // Choose random point to scale from
         let point: (f64, f64) = (
             rng.random_range(rectangle.min().x..rectangle.max().x),
             rng.random_range(rectangle.min().y..rectangle.max().y),
