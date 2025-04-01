@@ -72,7 +72,7 @@ pub fn calculate_aabb(
 
     let min_size = anon_conf.min_area_size;
 
-    let mut rectangle = Rect::new(aabb.lower(), aabb.upper());
+    let rectangle = Rect::new(aabb.lower(), aabb.upper());
 
     let lower = aabb.lower();
     let upper = aabb.upper();
@@ -81,10 +81,11 @@ pub fn calculate_aabb(
 
     let aspect_ratio: f64 = rng.random_range(0.1..=0.9);
 
-    let scalar = min_size.sqrt()
+    let scalar = (min_size.sqrt()
         / (rectangle.geodesic_area_unsigned().sqrt()
             * aspect_ratio.sqrt()
-            * (1. - aspect_ratio).sqrt());
+            * (1. - aspect_ratio).sqrt()))
+    .ceil();
 
     if scalar > 1.0 {
         let mut rectangle = Rect::new(lower, upper);
@@ -100,29 +101,6 @@ pub fn calculate_aabb(
             point,
         );
 
-        // let long_offset = (rectangle.min().x - lower.x)
-        //     .abs()
-        //     .min((rectangle.max().x - upper.x).abs());
-        // let lat_offset = (rectangle.min().y - lower.y)
-        //     .abs()
-        //     .min((rectangle.max().y - upper.y).abs());
-
-        // let long_rand: f64 = rng.random_range(-1.0..1.0);
-        // let lat_rand: f64 = rng.random_range(-1.0..1.0);
-
-        // rectangle.set_min((
-        //     rectangle.min().x + long_offset * long_rand,
-        //     rectangle.min().y + lat_offset * lat_rand,
-        // ));
-        // rectangle.set_max((
-        //     rectangle.max().x + long_offset * long_rand * -1.,
-        //     rectangle.max().y + lat_offset * lat_rand * -1.,
-        // ));
-
-        // let scalar = min_size.sqrt() / rectangle.geodesic_area_unsigned().sqrt();
-        // if scalar > 1.0 {
-        //     rectangle = rectangle.scale(scalar);
-        // }
         aabb = AABB::from_corners(rectangle.min(), rectangle.max());
     }
 
@@ -177,11 +155,6 @@ mod tests {
         let rectangle = Rect::new(result.lower(), result.upper());
 
         let area = rectangle.geodesic_area_unsigned();
-
-        dbg!(&result);
-        dbg!(&area);
-
-        assert!(false);
 
         assert!(area.ge(&conf.min_area_size));
 
