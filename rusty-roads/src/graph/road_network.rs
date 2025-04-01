@@ -325,8 +325,6 @@ mod test {
 
     #[test]
     fn graph_dist_example() {
-        use geo::geometry::LineString;
-        use geo::Euclidean;
         use geo::Haversine;
         let r = road();
         let network = vec![
@@ -355,9 +353,6 @@ mod test {
             );
             NonNegativef64::try_from(dist).expect("distance should always be nonnegative")
         }
-        // let cost_fn = |p:&Road| p.geom.length(metric_space)
-        // let cost_fn = |p:&Road| Euclidean.distance(p.geom.0.first().unwrap(), p.geom.0.last().unwrap());
-        // let cost_fn = |p:&Road| Haversine.distance(Point::, destination);
 
         let target = 5;
         let (cost, path) = network
