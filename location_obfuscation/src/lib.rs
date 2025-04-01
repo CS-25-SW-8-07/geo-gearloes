@@ -1,8 +1,9 @@
+pub mod anonymity;
+
 use geo_types::geometry::Point;
 //use rayon::prelude::*;
-use rstar::primitives::GeomWithData;
 use rstar::{PointDistance, RTreeObject};
-use rusty_roads::{Id, NearestNeighbor, Queryable, RoadKey};
+use rusty_roads::{Id, NearestNeighbor};
 use std::collections::VecDeque;
 use thiserror::Error;
 
@@ -67,6 +68,7 @@ mod tests {
     use super::*;
     use geo_types::geometry::LineString;
     use geo_types::{Coord, Point, coord, line_string, point};
+    use rstar::primitives::GeomWithData;
 
     struct Roads {
         ids: Vec<Id>,

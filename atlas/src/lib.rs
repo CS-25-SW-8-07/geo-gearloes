@@ -1,3 +1,4 @@
+mod anonymity;
 mod error;
 
 use derive_more::From;
@@ -104,7 +105,7 @@ pub async fn box_query_exclude_by_id(
     without: &[usize],
     limit: Option<u32>,
 ) -> Result<Vec<rusty_roads::Road>, DbError> {
-    let (minx, miny, maxx, maxy) = (bbox.0 .0, bbox.0 .1, bbox.1 .0, bbox.1 .1);
+    let ((minx, miny), (maxx, maxy)) = bbox;
     let limit = limit.map_or("".into(), |x| format!("limit {x}"));
 
     let where_clause = match without.len() {
@@ -121,7 +122,7 @@ pub async fn box_query_exclude_by_id(
 
     let sql = format!("with box as (select st_envelope( st_setsrid(st_collect(st_makepoint($1,$2),st_makepoint($3,$4)),4326) ) as bbox)
     select id, st_asbinary(st_geometryn(geom,1),'NDR') as geom, osm_id, code, oneway, maxspeed, layer, bridge, tunnel from roads
-    join box on st_intersects(geom,bbox)  {where_clause} 
+    join box on st_intersects(geom,bbox)  {where_clause}
     {limit};");
     let res: Vec<MyRoad> = sqlx::query_as(&sql)
         .bind(minx)

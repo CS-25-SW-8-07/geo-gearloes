@@ -1484,7 +1484,10 @@ checksum = "23fb14cb19457329c82206317a5663005a4d404783dc74f4252769b0d5f42856"
 name = "location_obfuscation"
 version = "0.1.0"
 dependencies = [
+ "geo",
  "geo-types",
+ "num-traits",
+ "rand 0.9.0",
  "rayon",
  "rstar",
  "rusty-roads",

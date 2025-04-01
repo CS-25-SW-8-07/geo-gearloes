@@ -8,6 +8,10 @@ pub mod ref_item;
 pub use ref_item::*;
 pub mod feature_class;
 pub use feature_class::*;
+pub mod anonymities;
+pub use anonymities::*;
+pub mod trajectories;
+pub use trajectories::*;
 
 /// Type T is insertable into Self
 pub trait Insertable<Data> {
