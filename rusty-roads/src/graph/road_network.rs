@@ -1,6 +1,8 @@
 use super::super::*;
 use bimap::{BiHashMap, BiMap};
 use derive_more::Into;
+use geo::{Coord, Point};
+use petgraph::Direction::{Incoming, Outgoing};
 use petgraph::{matrix_graph::*, visit::EdgeRef};
 use std::collections::HashMap;
 
@@ -123,6 +125,28 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
             .collect::<Vec<_>>();
         Some((NonNegativef64::new(total_cost)?, ids))
     }
+
+    /// The point where a given node lies
+    fn point_from_node(&self, id: NodeId) -> Option<Point> {
+        let a = self.bi_map.get_by_left(&id)?;
+        let io = self
+            .network
+            .edges_directed(*a, Outgoing)
+            .filter_map(|e| e.2.geom.0.first())
+            .chain(
+                self.network
+                    .edges_directed(*a, Incoming)
+                    .filter_map(|e| e.2.geom.0.last()),
+            );
+        // .map(|coord| Point::from(*coord))
+        // .fold((0,Coord{ x: 0, y: 0 }), |acc,x|);
+        let (xs, ys): (Vec<f64>, Vec<f64>) = io.map(|c| c.x_y()).unzip();
+        let (size_x, size_y) = (xs.len() as f64, ys.len() as f64);
+        let avg_x: f64 = xs.into_iter().sum::<f64>() / size_x;
+        let avg_y = ys.into_iter().sum::<f64>() / size_y;
+        Some(Point::new(avg_x, avg_y))
+        // todo!()
+    }
 }
 
 #[derive(Into)]
@@ -183,8 +207,11 @@ pub fn graph_from_road_network<Idx: IndexType>(
 mod test {
     use std::u8;
 
+    use geo::line_measures::LengthMeasurable;
+    use geo::{Distance, Point};
     use geo_types::{coord, LineString};
 
+    use crate::graph::road_network::NodeId;
     use crate::Road;
 
     macro_rules! big_graph_tests {
@@ -336,18 +363,6 @@ mod test {
             "No path should be possible between disconnected graphs"
         );
     }
-    // #[test]
-    // #[should_panic(expected = "Road network is greater than maximum index of graph")]
-    // fn too_big_graph() {
-    //     let r = road();
-    //     let roads = vec![road_factory(&r, 1, 1); u8::MAX as usize + 1];
-    //     let roads = roads.into_iter().enumerate().map(|(i, r)| RoadWithNode {
-    //         road: r.road,
-    //         source: i as i32,
-    //         target: r.target,
-    //     });
-    //     let _big_graph = RoadNetwork::<u8>::new(roads);
-    // }
 
     #[test]
     #[ignore = "deprecated function"]
@@ -391,5 +406,64 @@ mod test {
         const _: () = assert!(NonNegativef64::new(f64::INFINITY).is_some());
 
         assert!(true, "does not really need to be a test");
+    }
+
+    #[test]
+    fn graph_dist_example() {
+        use geo::geometry::LineString;
+        use geo::Euclidean;
+        use geo::Haversine;
+        let r = road();
+        let network = vec![
+            road_factory(&r, 1, 2),
+            road_factory(&r, 2, 3),
+            road_factory(&r, 3, 1),
+            road_factory(&r, 2, 4),
+            road_factory(&r, 4, 5),
+            road_factory(&r, 2, 5),
+        ]; // assuming uniform weights, shortest path from 1 to 5 should be 1 -> 2 -> 5
+
+        let network = RoadNetwork::<u8>::new(network.into_iter()).unwrap();
+        let a = petgraph::dot::Dot::with_config(
+            &network.network,
+            &[petgraph::dot::Config::EdgeNoLabel],
+        );
+        println!("{:?}", a); // use this tool to visualize https://dreampuf.github.io/GraphvizOnline/
+
+        fn cost_fn(r: &Road) -> NonNegativef64 {
+            let (first_lon, first_lat) = r.geom.0.first().unwrap().x_y();
+            let (last_lon, last_lat) = r.geom.0.last().unwrap().x_y();
+
+            let dist = Haversine.distance( //? the total cost will not make a lot of sense using, it is just an example
+                Point::new(first_lon, first_lat), 
+                Point::new(last_lon, last_lat),
+            );
+            NonNegativef64::new(dist).expect("distance should always be nonnegative")
+        }
+        fn heuristic<'a>(network: RoadNetwork<'a, u8>, id: NodeId) -> NonNegativef64 {
+            todo!()
+        }
+        // let cost_fn = |p:&Road| p.geom.length(metric_space)
+        // let cost_fn = |p:&Road| Euclidean.distance(p.geom.0.first().unwrap(), p.geom.0.last().unwrap());
+        // let cost_fn = |p:&Road| Haversine.distance(Point::, destination);
+
+        let target = 5;
+        let (cost, path) = network
+            .path_find(
+                1,
+                target,
+                |r| cost_fn(r),
+                |id| {
+                    NonNegativef64::new(Haversine.distance(
+                        network.point_from_node(id).unwrap(),
+                        network.point_from_node(target).unwrap(),
+                    ))
+                    .unwrap()
+                },
+            )
+            .expect("expected to find a path");
+
+            assert!(cost.0>0.0);
+            assert_eq!(path, vec![1, 2, 5])
     }
 }
