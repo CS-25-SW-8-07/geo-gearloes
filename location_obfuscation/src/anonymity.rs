@@ -60,7 +60,8 @@ pub fn calculate_aabb(
     if rectangle.geodesic_area_unsigned() < min_size {
         // Calculate the minimum aspect ratio scaling (scalar * aspect_ratio must not be less than 1)
         let min_aspect_ratio: f64 =
-            HALF / (min_size.sqrt()
+            HALF / (min_size.sqrt() / rectangle.geodesic_area_unsigned().sqrt());
+
         // Create random scaleable aspect ratio for hiding how the trajectory looks.
         let aspect_ratio: f64 = rng.random_range(min_aspect_ratio..=(1.0 - min_aspect_ratio));
 
