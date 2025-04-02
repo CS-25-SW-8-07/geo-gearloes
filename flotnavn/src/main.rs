@@ -1,9 +1,9 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use atlas::{bind, box_query};
+use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
 use std::env;
-use atlas::{bind, box_query};
-use comms::Parquet;
 
 mod http_methods;
 
@@ -28,10 +28,10 @@ async fn main() -> std::io::Result<()> {
 
     // Start the HTTP server asynchronously with Actix
     HttpServer::new(move || {
-        App::new()
-            .app_data(web::Data::new(pool.clone())) // Share the pool across all routes
-            .service(http_methods::testing123)
-            .service(http_methods::get_roads_in_bbox)
+        let mut app = App::new().app_data(web::Data::new(pool.clone()));// Share the pool across all routes
+        app = http_methods::services(app);
+
+        app
     })
     .bind(("127.0.0.1", 8080))? // Bind to localhost:8080
     .run()
