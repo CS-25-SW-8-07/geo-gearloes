@@ -174,7 +174,6 @@ const _: () = assert!(NonNegativef64::try_from(f64::INFINITY).is_some());
 
 #[cfg(test)]
 mod test {
-    use std::u8;
 
     use geo::{Distance, Point};
     use geo_types::{coord, LineString};
