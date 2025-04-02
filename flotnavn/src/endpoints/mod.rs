@@ -1,6 +1,5 @@
 pub mod anon;
 
-
 pub fn get_bbox(query: &std::collections::HashMap<String, String>) -> ((f64, f64), (f64, f64)) {
     let get_coord = |key: &str| {
         query
@@ -16,3 +15,4 @@ pub fn get_bbox(query: &std::collections::HashMap<String, String>) -> ((f64, f64
 
     ((lon1, lat1), (lon2, lat2))
 }
+
