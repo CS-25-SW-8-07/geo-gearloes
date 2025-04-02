@@ -82,6 +82,10 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
         })
     }
 
+    /// Finds a path from `source` to `target` that minimizes the total cost given by `cost` (i.e. shortest path)
+    /// If no path is possible [`None`] is returned
+    /// # Notes
+    /// The heuristic function is subject to an additional constraint: the function may never overestimate the cost for a particular node (admissable)
     pub fn path_find<F, H>(
         &self,
         source: NodeId,
@@ -111,7 +115,7 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
             petgraph::algo::astar(&self.network, *start, is_goal, edge_cost, new_heuristic)?;
 
         let roads = track.windows(2).map(|w| RoadWithNode {
-            road: *self.network.edge_weight(w[0], w[1]),
+            road: self.network.edge_weight(w[0], w[1]),
             source: *self
                 .bi_map
                 .get_by_right(&w[0])
