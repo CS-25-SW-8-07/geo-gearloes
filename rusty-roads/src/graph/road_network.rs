@@ -88,7 +88,7 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
         target: NodeId,
         cost: F,
         mut heuristic: H,
-    ) -> Option<(NonNegativef64, Vec<i32>)>
+    ) -> Option<(NonNegativef64, Vec<RoadWithNode>)>
     where
         F: Fn(&Road) -> NonNegativef64,
         H: FnMut(NodeId) -> NonNegativef64,
@@ -109,11 +109,25 @@ impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
 
         let (total_cost, track) =
             petgraph::algo::astar(&self.network, *start, is_goal, edge_cost, new_heuristic)?;
-        let ids = track
-            .into_iter()
-            .map(|idx| *self.network.node_weight(idx))
-            .collect::<Vec<_>>();
-        Some((NonNegativef64::try_from(total_cost)?, ids))
+
+        let roads = track.windows(2).map(|w| RoadWithNode {
+            road: *self.network.edge_weight(w[0], w[1]),
+            source: *self
+                .bi_map
+                .get_by_right(&w[0])
+                .expect("this operation should be infallible"),
+            target: *self
+                .bi_map
+                .get_by_right(&w[1])
+                .expect("this operation should be infallible"),
+        });
+
+        let roads = roads.collect::<Vec<_>>();
+        debug_assert!(
+            roads.windows(2).all(|p| p[0].target == p[1].source),
+            "constructed path is disconnected"
+        );
+        Some((NonNegativef64::try_from(total_cost)?, roads))
     }
 
     pub fn point_from_node(&self, id: NodeId) -> Option<Point> {
@@ -282,8 +296,12 @@ mod test {
             .path_find(1, 5, |_| NonNegativef64(1.0), |_| NonNegativef64(0.0))
             .expect("expected to find a path");
 
+        let path = path
+            .iter()
+            .map(|r| (r.source, r.target))
+            .collect::<Vec<_>>();
         assert_eq!(cost.0, 2.0);
-        assert_eq!(path, vec![1, 2, 5])
+        assert_eq!(path, vec![(1, 2), (2, 5)])
     }
 
     #[test]
@@ -360,7 +378,11 @@ mod test {
             )
             .expect("expected to find a path");
 
+        let path = path
+            .iter()
+            .map(|r| (r.source, r.target))
+            .collect::<Vec<_>>();
         assert!(cost.0 > 0.0);
-        assert_eq!(path, vec![1, 2, 5])
+        assert_eq!(path, vec![(1, 2), (2, 5)])
     }
 }
