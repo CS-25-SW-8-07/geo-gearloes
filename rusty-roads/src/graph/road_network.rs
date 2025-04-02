@@ -29,6 +29,11 @@ pub struct RoadNetwork<'a, Idx: IndexType> {
 }
 
 impl<'a, Idx: IndexType> RoadNetwork<'a, Idx> {
+    /// Creates a road network graph from an iterator of roads
+    ///
+    /// # Panics
+    ///
+    /// Panics if  `roads.count()` is greater than [`IndexType::max()`].
     pub fn new<I>(roads: I) -> Option<Self>
     where
         I: Iterator<Item = RoadWithNode<'a>> + Clone,
