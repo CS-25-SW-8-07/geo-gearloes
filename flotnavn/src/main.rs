@@ -1,9 +1,9 @@
-use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, http::StatusCode, web, App, HttpResponse, HttpServer, Responder};
+use atlas::{bind, box_query};
+use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
 use std::env;
-use atlas::{bind, box_query};
-use comms::Parquet;
 
 mod http_methods;
 
@@ -32,8 +32,16 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(pool.clone())) // Share the pool across all routes
             .service(http_methods::testing123)
             .service(http_methods::get_roads_in_bbox)
+            .service(wasm_frontend::service_fontend_endpoints!())
     })
     .bind(("127.0.0.1", 8080))? // Bind to localhost:8080
     .run()
     .await
+}
+
+wasm_frontend::create_fontend_endpoints!();
+
+#[get("/")]
+async fn index() -> impl Responder {
+    HttpResponse::new(StatusCode::MOVED_PERMANENTLY).
 }

@@ -11,6 +11,7 @@ sqlx = { version = "0.8.3", features = ["postgres", "runtime-tokio-native-tls"] 
 tokio = "1.44.1"
 rusty-roads = { path = "../rusty-roads" }
 comms = { version = "0.1.0", path = "../comms" }
+wasm-frontend = { version = "0.1.0", path = "../wasm-frontend" }
 
 [lints]
 workspace = true
