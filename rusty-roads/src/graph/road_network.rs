@@ -8,9 +8,9 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct RoadWithNode<'a> {
-    road: &'a Road,
-    source: i32,
-    target: i32,
+    pub road: &'a Road,
+    pub source: i32,
+    pub target: i32,
 }
 
 #[allow(type_alias_bounds)]
