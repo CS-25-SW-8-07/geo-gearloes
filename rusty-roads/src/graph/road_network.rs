@@ -13,11 +13,6 @@ pub struct RoadWithNode<'a> {
     target: i32,
 }
 
-impl RoadWithNode<'_> {
-    fn direction(&self) -> Direction {
-        self.road.direction
-    }
-}
 #[allow(type_alias_bounds)]
 type RoadNetworkGraph<'a, Idx: IndexType> = DiMatrix<i32, &'a Road, Option<&'a Road>, Idx>;
 
