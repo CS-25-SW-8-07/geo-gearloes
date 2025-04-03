@@ -2,7 +2,7 @@ use actix_web::{
     dev::{ServiceFactory, ServiceRequest},
     get, web, App, Error, HttpResponse, HttpServer, Responder,
 };
-use atlas::{bind, box_query};
+use atlas::{create_pool, box_query};
 use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
