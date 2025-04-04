@@ -1,4 +1,4 @@
-mod anonymity;
+pub mod anonymity;
 mod error;
 
 use derive_more::From;

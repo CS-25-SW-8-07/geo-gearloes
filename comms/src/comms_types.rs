@@ -6,7 +6,8 @@ use arrow_array::{
     StringArray,
     cast::AsArray,
     types::{
-        Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+        Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type,
+        UInt32Type, UInt64Type,
     },
 };
 use arrow_schema::ArrowError;
@@ -91,6 +92,14 @@ impl ParquetType for u32 {
 
 impl ParquetType for u64 {
     type ParquetPrimitiveType = UInt64Type;
+}
+
+impl ParquetType for f32 {
+    type ParquetPrimitiveType = Float32Type;
+}
+
+impl ParquetType for f64 {
+    type ParquetPrimitiveType = Float64Type;
 }
 
 pub trait ToParquetType {

@@ -1,10 +1,12 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use atlas::{create_pool, box_query};
+
+use atlas::{box_query, create_pool};
 use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
 use std::env;
 
+mod endpoints;
 mod http_methods;
 
 #[actix_web::main]
@@ -22,14 +24,17 @@ async fn main() -> std::io::Result<()> {
         db_username, db_password, db_address, db_port, db_name
     );
 
-    // Use the create pool function to get a lazy database pool
-    let pool = atlas::create_pool(&database_url, None).await.unwrap(); // This is using the `connect_lazy`
+    // Use the bind function to get a lazy database pool
+    let pool = atlas::create_pool(&database_url, Some(10))
+        .await
+        .expect("Could not connect to Postgres DB");
     println!("Successfully connected to Postgres");
 
     // Start the HTTP server asynchronously with Actix
     HttpServer::new(move || {
-        let mut app = App::new().app_data(web::Data::new(pool.clone()));// Share the pool across all routes
+        let mut app = App::new().app_data(web::Data::new(pool.to_owned())); // Share the pool across all routes
         app = http_methods::services(app);
+        app = endpoints::anon::services(app);
 
         app
     })

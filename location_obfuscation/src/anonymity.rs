@@ -26,13 +26,13 @@ pub fn evaluate_route_anonymity<'a>(
     let min_k = anon_conf.min_k;
 
     let count: u64 = current_k.clone().into_iter().count().try_into()?;
-    let below_k: u64 = current_k
+    let above_k: u64 = current_k
         .into_iter()
         .filter(|x| *(*x).into() >= min_k as f64)
         .count()
         .try_into()?;
 
-    let percentile = below_k as f64 / count as f64;
+    let percentile = above_k as f64 / count as f64;
 
     Ok(percentile > min_per)
 }
@@ -55,9 +55,8 @@ pub fn calculate_aabb(
     let lower = aabb.lower();
     let upper = aabb.upper();
 
-    let mut rng = rand::rng();
-
     if rectangle.geodesic_area_unsigned() < min_size {
+        let mut rng = rand::rng();
         // Calculate the minimum aspect ratio scaling (scalar * aspect_ratio must not be less than 1)
         let min_aspect_ratio: f64 =
             HALF / (min_size.sqrt() / rectangle.geodesic_area_unsigned().sqrt());
