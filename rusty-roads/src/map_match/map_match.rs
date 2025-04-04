@@ -1,14 +1,19 @@
+use crate::RoadIndex;
 use crate::Roads;
 
 use super::super::Road;
 use super::super::RoadWithNode;
 use geo::closest_point::ClosestPoint;
+use geo::Closest;
+use geo::Point;
 use geo::{LineString, MultiLineString};
+use itertools::Itertools;
 
 type Trajectory = LineString<f64>;
 
 impl ClosestPoint<f64> for Road {
     fn closest_point(&self, p: &geo::Point<f64>) -> geo::Closest<f64> {
+        // self.geom.lin
         self.geom.closest_point(p)
     }
 }
@@ -24,9 +29,51 @@ impl ClosestPoint<f64> for RoadWithNode<'_> {
     }
 }
 
+fn map_match_traj_to_road(traj: &Trajectory, road: impl ClosestPoint<f64>) -> Trajectory {
+    let matched = traj
+        .points()
+        .map(|p| match road.closest_point(&p) {
+            Closest::SinglePoint(s) => Ok(s),
+            Closest::Intersection(i) => Ok(i),
+            Closest::Indeterminate => Err(p), //TODO: special case to be handled, perhaps some sliding window magic
+        })
+        .collect::<Vec<_>>();
+    // .filter_map(|r| r.ok());
+    // let matched = matched.windows(3).map(|w|);
+    // LineString::from(matched.collect::<Vec<_>>())
+    todo!()
+}
+fn map_match_index(traj: &Trajectory, index: &RoadIndex) -> Option<Trajectory> {
+    let matched = traj
+        .points()
+        .map(|p| {
+            let nn = index.index.nearest_neighbor(&p);
+            match nn {
+                Some(n) => match n.geom().closest_point(&p) {
+                    Closest::SinglePoint(s) => Ok(Some(s)),
+                    Closest::Intersection(i) => Ok(Some(i)),
+                    Closest::Indeterminate => Err(p), //TODO: failed matches
+                },
+                None => Ok(None),
+            }
+        })
+        .flatten_ok()
+        .collect::<Vec<Result<_, _>>>();
+
+    let matched = matched
+        .windows(3)
+        .map(|w| w[1])
+        .collect::<Result<Vec<_>, _>>()
+        .ok();
+    // for (idx,ele) in matched.enumerate() {
+    //     ele.map_or_else(|ok| ok, |err|matched[idx]);
+    // }
+    matched.map(|ps| LineString::from(ps))
+}
+
 #[cfg(test)]
 mod tests {
-    use geo::{Closest, Point};
+    use geo::{wkt, Closest, Point};
     use geo_types::line_string;
 
     use super::*;
@@ -57,6 +104,7 @@ mod tests {
         });
         assert!(res)
     }
+
     #[test]
     fn road_indeterminate_closest() {
         let ls = line_string![(x:1.0,y:1.0),(x:1.0,y:2.0)];
@@ -64,5 +112,19 @@ mod tests {
         let res =
             ls.0.iter()
                 .all(|p| matches!(road.closest_point(&Point::from(*p)), Closest::Indeterminate));
+    }
+
+    #[test]
+    fn match_using_index() {
+        let lss = [
+            wkt! {LINESTRING(1.0 0.0)},
+            wkt! {LINESTRING(2.0 0.0)},
+            wkt! {LINESTRING(3.0 0.0)},
+        ];
+        let ids = [1, 2, 3];
+        let rtree = RoadIndex::from_ids_and_roads(&ids, &lss);
+        let traj = wkt! {LINESTRING(1.0 0.9, 2.1 0.5, 3.2 -1.0)};
+
+        let matched = map_match_index(&traj, &rtree).expect("map matching should be succesful");
     }
 }
