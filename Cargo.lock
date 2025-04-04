@@ -2016,6 +2016,7 @@ dependencies = [
  "rstar",
  "thiserror 2.0.12",
  "wkb",
+ "wkt",
 ]
 
 [[package]]
@@ -2879,6 +2880,19 @@ dependencies = [
  "byteorder",
  "geo-traits",
  "num_enum",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "wkt"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1c591649bd1c9d4e28459758bbb5fb5c0edc7a67060b52422f4761c94ffe961"
+dependencies = [
+ "geo-traits",
+ "geo-types",
+ "log",
+ "num-traits",
  "thiserror 1.0.69",
 ]
 
