@@ -43,7 +43,7 @@ fn map_match_traj_to_road(traj: &Trajectory, road: impl ClosestPoint<f64>) -> Tr
     // LineString::from(matched.collect::<Vec<_>>())
     todo!()
 }
-fn map_match_index(traj: &Trajectory, index: &RoadIndex) -> Option<Trajectory> {
+fn map_match_index(traj: &Trajectory, index: &RoadIndex) -> Vec<Result<Option<Point>, Point>> {
     let matched = traj
         .points()
         .map(|p| {
@@ -52,23 +52,28 @@ fn map_match_index(traj: &Trajectory, index: &RoadIndex) -> Option<Trajectory> {
                 Some(n) => match n.geom().closest_point(&p) {
                     Closest::SinglePoint(s) => Ok(Some(s)),
                     Closest::Intersection(i) => Ok(Some(i)),
-                    Closest::Indeterminate => Err(p), //TODO: failed matches
+                    Closest::Indeterminate => Err(p), //TODO: failed matches, if a linestring has length 1, this arm is matched
                 },
                 None => Ok(None),
             }
         })
-        .flatten_ok()
-        .collect::<Vec<Result<_, _>>>();
+        .collect::<Vec<Result<Option<Point>, Point>>>();
 
-    let matched = matched
-        .windows(3)
-        .map(|w| w[1])
-        .collect::<Result<Vec<_>, _>>()
-        .ok();
+    // .flatten_ok()
+    // .collect::<Vec<Result<_, _>>>();
+    // .collect::<Result<Vec<_>, _>>()
+    // .ok();
+
+    // let matched = matched
+    //     .windows(3)
+    //     .map(|w| w[1])
+    //     .collect::<Result<Vec<_>, _>>()
+    //     .ok();
     // for (idx,ele) in matched.enumerate() {
     //     ele.map_or_else(|ok| ok, |err|matched[idx]);
     // }
-    matched.map(|ps| LineString::from(ps))
+    // matched.map(|ps| LineString::from(ps))
+    matched
 }
 
 #[cfg(test)]
@@ -115,16 +120,45 @@ mod tests {
     }
 
     #[test]
-    fn match_using_index() {
+    fn rtree_nn() {
         let lss = [
-            wkt! {LINESTRING(1.0 0.0)},
-            wkt! {LINESTRING(2.0 0.0)},
-            wkt! {LINESTRING(3.0 0.0)},
+            wkt! {LINESTRING(1.0 0.0, 2.0 0.0)},
+            wkt! {LINESTRING(2.0 0.0, 3.0 0.0)},
+            // wkt! {LINESTRING(3.0 0.0)},
         ];
         let ids = [1, 2, 3];
         let rtree = RoadIndex::from_ids_and_roads(&ids, &lss);
-        let traj = wkt! {LINESTRING(1.0 0.9, 2.1 0.5, 3.2 -1.0)};
+        let qp = wkt! {POINT(1.1 0.0)};
+        let nn = rtree
+            .index
+            .nearest_neighbor(&qp)
+            .map(|g| g.geom().closest_point(&qp));
+        dbg!(nn);
+        assert!(!matches!(nn, Some(Closest::Indeterminate)));
+    }
 
-        let matched = map_match_index(&traj, &rtree).expect("map matching should be succesful");
+    #[test]
+    fn match_using_index() {
+        let lss = [
+            wkt! {LINESTRING(1.0 0.0, 2.0 0.0)},
+            wkt! {LINESTRING(2.0 0.0, 3.0 0.0)},
+            // wkt! {LINESTRING(3.0 0.01)},
+        ];
+        let ids = [1, 2, 3];
+        let rtree = RoadIndex::from_ids_and_roads(&ids, &lss);
+        let traj = wkt! {LINESTRING(1.0 0.4, 2.1 0.5, 3.2 -1.0)};
+
+        let matched = map_match_index(&traj, &rtree);
+        let is_ok = matched
+            .iter()
+            .enumerate()
+            // .inspect(|(idx, e)| {
+            //     if e.is_err() {
+            //         dbg!((idx, e));
+            //     }
+            // })
+            .all(|p| p.1.is_ok_and(|p| p.is_some()));
+        dbg!(matched);
+        assert!(is_ok);
     }
 }
