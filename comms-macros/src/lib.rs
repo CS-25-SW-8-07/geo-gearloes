@@ -36,7 +36,7 @@ fn parse_field(field: &Field) -> (TokenStream, Option<TokenStream>) {
         .attrs
         .iter()
         .filter(|x| {
-            x.path().get_ident().map_or(false, |x| {
+            x.path().get_ident().is_some_and(|x| {
                 x.to_token_stream().to_string().as_str() == "parquet_type"
             })
         })

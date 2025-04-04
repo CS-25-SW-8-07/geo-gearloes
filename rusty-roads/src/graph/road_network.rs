@@ -1,10 +1,9 @@
 use super::super::*;
 use bimap::{BiHashMap, BiMap};
 use derive_more::Into;
-use geo::{Coord, Point};
+use geo::Point;
 use petgraph::Direction::{Incoming, Outgoing};
 use petgraph::{matrix_graph::*, visit::EdgeRef};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct RoadWithNode<'a> {
