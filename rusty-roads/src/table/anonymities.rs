@@ -1,5 +1,8 @@
 use crate::Id;
 
+use comms::Parquet;
+
+#[derive(Parquet)]
 pub struct Anonymities {
     pub road_id: Vec<Id>,
     pub current_k: Vec<f64>,

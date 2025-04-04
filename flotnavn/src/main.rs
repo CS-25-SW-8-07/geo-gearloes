@@ -1,5 +1,5 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use atlas::{bind, box_query};
+use atlas::{box_query, create_pool};
 use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
@@ -24,7 +24,7 @@ async fn main() -> std::io::Result<()> {
     );
 
     // Use the bind function to get a lazy database pool
-    let pool = atlas::bind(&database_url, Some(10))
+    let pool = atlas::create_pool(&database_url, Some(10))
         .await
         .expect("Could not connect to Postgres DB");
     println!("Successfully connected to Postgres");
