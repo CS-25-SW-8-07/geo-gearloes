@@ -9,8 +9,6 @@ use rstar::AABB;
 use rusty_roads::AnonymityConf;
 use thiserror::Error;
 
-const HALF: f64 = 0.5;
-
 #[derive(Debug, Error)]
 pub enum AnonymityError {
     #[error("Float could not be converted")]
