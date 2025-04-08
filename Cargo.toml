@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+
 members = [ "atlas", "comms", "comms-macros","rusty-roads", "tests", "location_obfuscation", "server"]
 
 [workspace.lints.clippy]
