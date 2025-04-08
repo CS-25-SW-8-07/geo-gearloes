@@ -5,6 +5,8 @@ use super::super::Road;
 use super::super::RoadWithNode;
 use geo::closest_point::ClosestPoint;
 use geo::Closest;
+use geo::Distance;
+use geo::Euclidean;
 use geo::Point;
 use geo::{LineString, MultiLineString};
 use itertools::Itertools;
@@ -43,6 +45,55 @@ fn map_match_traj_to_road(traj: &Trajectory, road: impl ClosestPoint<f64>) -> Tr
     // LineString::from(matched.collect::<Vec<_>>())
     todo!()
 }
+/// an implementation that handles some cases listed in [this paper](https://www.sciencedirect.com/science/article/pii/S0968090X00000267)
+fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>, Point> {
+    debug_assert!(
+        index.index.iter().all(|p| p.geom().0.len() > 1),
+        "Linestrings with only one point are not allowed"
+    ); // might be checked my `geo_types``
+    debug_assert!(
+        index.index.size() > 1,
+        "index must be non-empty (and have more than 1 element to simplify return type)"
+    );
+
+    // same as `map_match_index` but should handle `Closest::Indeterminate` better
+    let mut matched = traj
+        .points()
+        .map(|p| {
+            let mut inn = index.index.nearest_neighbor_iter(&p);
+            let first_nn = inn
+                .next()
+                .map(|g| g.geom())
+                .expect("rtree should have 1 element");
+            // let second = inn.next().map(|g| g.geom()).expect("rtree should have at least 2 elements");
+            let closest = Euclidean.distance(first_nn, &p);
+            let candidates = inn.take_while(|pred| Euclidean.distance(pred.geom(), &p) <= closest);
+            // in most cases, this is probably empty
+            match first_nn.closest_point(&p) {
+                Closest::SinglePoint(s) => Ok(s),
+                Closest::Intersection(i) => Ok(i),
+                Closest::Indeterminate => Err(p),
+            }
+        })
+        .map(|r| match r {
+            Ok(p) => p,
+            Err(p) => p, // ! handle error points better
+        })
+        .collect::<Vec<_>>();
+    for (idx, ele) in matched.iter().enumerate().skip(1) {
+        let [prev, mid, next] = [matched[idx - 1], matched[idx], matched[idx]]
+            .map(|p| index.index.nearest_neighbor(&p).unwrap());
+
+        // figure 6 in paper (oscillating match )
+        if prev == next && prev != mid {
+            let new_match = prev.geom().closest_point(&matched[idx]);
+        }
+    }
+
+    todo!()
+}
+
+#[deprecated]
 fn map_match_index(traj: &Trajectory, index: &RoadIndex) -> Vec<Result<Option<Point>, Point>> {
     let matched = traj
         .points()
@@ -222,7 +273,7 @@ mod tests {
 
     #[test]
     fn match_with_varying_noise() {
-        const NOISE: f64 = 0.00005*100.0;
+        const NOISE: f64 = 0.00005 * 100.0;
         let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
         let network: MultiLineString<f64> =
             wkt::TryFromWkt::try_from_wkt_str(&TRAJ_277_NEARBY).unwrap();
@@ -234,21 +285,28 @@ mod tests {
 
         let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
 
-        let matched = (1..10).map(|f| {
-            let noisy = add_noise(&traj_orig, NOISE * f as f64);
-            let matched = map_match_index(&noisy, &rtree)
-                .into_iter()
-                .flatten_ok()
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap();
-            let matched = LineString::from(matched);
-            let frechet_dist = Euclidean.frechet_distance(&traj_orig, &matched);
-            (frechet_dist,matched)
-        }).zip(0..);
+        let matched = (1..10)
+            .map(|f| {
+                let noisy = add_noise(&traj_orig, NOISE * f as f64);
+                let matched = map_match_index(&noisy, &rtree)
+                    .into_iter()
+                    .flatten_ok()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                let matched = LineString::from(matched);
+                let frechet_dist = Euclidean.frechet_distance(&traj_orig, &matched);
+                (frechet_dist, matched)
+            })
+            .zip(0..);
         for ele in matched.clone() {
-            println!("dist: {}\tnoise:{}",ele.0.0,ele.1 as f64 * NOISE); // use --show-output to show this
+            println!("dist: {}\tnoise:{}", ele.0 .0, ele.1 as f64 * NOISE); // use --show-output to show this
         }
-        matched.collect::<Vec<_>>().windows(2).for_each(|e| assert!(e[0].0.0 < e[1].0.0,"frechet distance should be smaller with a lower noise level"));
+        matched.collect::<Vec<_>>().windows(2).for_each(|e| {
+            assert!(
+                e[0].0 .0 < e[1].0 .0,
+                "frechet distance should be smaller with a lower noise level"
+            )
+        });
     }
 
     #[test]
