@@ -57,7 +57,7 @@ fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>
     );
 
     // same as `map_match_index` but should handle `Closest::Indeterminate` better
-    let mut matched = traj
+    let matched = traj
         .points()
         .map(|p| {
             let mut inn = index.index.nearest_neighbor_iter(&p);
@@ -66,31 +66,77 @@ fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>
                 .map(|g| g.geom())
                 .expect("rtree should have 1 element");
             // let second = inn.next().map(|g| g.geom()).expect("rtree should have at least 2 elements");
-            let closest = Euclidean.distance(first_nn, &p);
-            let candidates = inn.take_while(|pred| Euclidean.distance(pred.geom(), &p) <= closest);
+            let min_dist = Euclidean.distance(first_nn, &p);
+            let candidates = inn.take_while(|pred| Euclidean.distance(pred.geom(), &p) <= min_dist);
             // in most cases, this is probably empty
-            match first_nn.closest_point(&p) {
-                Closest::SinglePoint(s) => Ok(s),
-                Closest::Intersection(i) => Ok(i),
-                Closest::Indeterminate => Err(p),
-            }
+            closest(p, first_nn)
         })
         .map(|r| match r {
             Ok(p) => p,
-            Err(p) => p, // ! handle error points better
+            Err(p) => (p, p), // ! handle error points better
         })
         .collect::<Vec<_>>();
-    for (idx, ele) in matched.iter().enumerate().skip(1) {
-        let [prev, mid, next] = [matched[idx - 1], matched[idx], matched[idx]]
-            .map(|p| index.index.nearest_neighbor(&p).unwrap());
 
-        // figure 6 in paper (oscillating match )
-        if prev == next && prev != mid {
-            let new_match = prev.geom().closest_point(&matched[idx]);
-        }
-    }
+    // for (idx, ele) in matched.iter().enumerate().skip(1) {
+    //     let [prev, mid, next] = [matched[idx - 1], matched[idx], matched[idx]]
+    //         .map(|(p, _)| index.index.nearest_neighbor(&p).unwrap());
+
+    //     // figure 6 in paper (oscillating match )
+    //     if prev == next && prev != mid {
+    //         // matched[idx].0 = prev.geom().closest_point(&matched[idx].1);
+    //         matched[idx].0 = match closest(matched[idx].1, prev.geom()).map(|(p, _)| p) {
+    //             Ok(p) => p,
+    //             Err(p) => p,
+    //         };
+    //     }
+    // }
 
     todo!()
+}
+
+// attemtps to re-match points if oscillations are detected
+fn oscillating_case<'a>(points: &'a [(Point, Point)], rtree: &RoadIndex) -> Vec<(Point, Point)> {
+    debug_assert!(rtree.index.size() > 1);
+
+    let iter = points.iter().tuple_windows().map(|(fst, snd, thd)| {
+        let [prev, mid, next] = [fst, snd, thd].map(|f| {
+            rtree
+                .index
+                .nearest_neighbor(&f.0)
+                .expect("rtree should be nonemtpy")
+        });
+
+        let new_match = match mid {
+            g if prev == next && prev != g => f(closest(snd.1, prev.geom())),
+            _ => *snd,
+            // g if prev != next => {},
+        };
+        (*fst, new_match, *thd)
+    });
+    let (first, second, third) = iter
+        .clone()
+        .take(1)
+        .exactly_one()
+        .expect("there should be atleast one element in the iterator");
+    let resulting = [first, second, third]
+        .into_iter()
+        .chain(iter.skip(1).map(|(_, _, last)| last));
+    resulting.collect()
+}
+
+fn closest(p: Point, first_nn: &LineString) -> Result<(Point, Point), Point> {
+    match first_nn.closest_point(&p) {
+        Closest::SinglePoint(s) => Ok((s, p)),
+        Closest::Intersection(i) => Ok((i, p)),
+        Closest::Indeterminate => Err(p),
+    }
+}
+
+fn f(r: Result<(Point, Point), Point>) -> (Point, Point) {
+    match r {
+        Ok(p) => p,
+        Err(e) => (e, e),
+    }
 }
 
 #[deprecated]
