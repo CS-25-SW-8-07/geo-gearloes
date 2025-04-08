@@ -10,8 +10,10 @@ use geo::Euclidean;
 use geo::Point;
 use geo::{LineString, MultiLineString};
 use itertools::Itertools;
+use rstar::primitives::GeomWithData;
 
 type Trajectory = LineString<f64>;
+type ADDDD<'a> = (Point, (Point, &'a GeomWithData<LineString<f64>, u64>));
 
 impl ClosestPoint<f64> for Road {
     fn closest_point(&self, p: &geo::Point<f64>) -> geo::Closest<f64> {
@@ -61,19 +63,18 @@ fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>
         .points()
         .map(|p| {
             let mut inn = index.index.nearest_neighbor_iter(&p);
-            let first_nn = inn
-                .next()
-                .map(|g| g.geom())
-                .expect("rtree should have 1 element");
+            let first_nn = inn.next().unwrap();
+            // .map(|g| g.geom())
+            // .expect("rtree should have 1 element");
             // let second = inn.next().map(|g| g.geom()).expect("rtree should have at least 2 elements");
-            let min_dist = Euclidean.distance(first_nn, &p);
-            let candidates = inn.take_while(|pred| Euclidean.distance(pred.geom(), &p) <= min_dist);
+            // let min_dist = Euclidean.distance(first_nn, &p);
+            // let candidates = inn.take_while(|pred| Euclidean.distance(pred.geom(), &p) <= min_dist);
             // in most cases, this is probably empty
-            closest(p, first_nn)
+            (closest(p, first_nn.geom()), first_nn)
         })
-        .map(|r| match r {
-            Ok(p) => p,
-            Err(p) => (p, p), // ! handle error points better
+        .map(|r| match r.0 {
+            Ok(p) => (p.0, (p.1, r.1)),
+            Err(p) => (p, (p, r.1)), // ! handle error points better
         })
         .collect::<Vec<_>>();
 
@@ -94,8 +95,31 @@ fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>
     todo!()
 }
 
+fn perpendicular_case(
+    points: &[ADDDD],
+    rtree: &RoadIndex,
+    window_size: usize,
+) -> Vec<(Point, Point)> {
+    debug_assert!(window_size >= 3);
+    let res = points.windows(window_size).map(|s| {
+        match s {
+            [start @ .., last] => {
+                if start.iter().map(|f| f.1 .1).all_equal() { // if all in start is matched to same road, then last should be as well (if direction is equal)
+
+                }
+            }
+            _ => unreachable!(),
+        }
+    });
+    // for (fst, mid, lst) in points.iter().tuple_windows() {
+    //     // if fst.1.1 == snd.1.1
+    // }
+
+    todo!()
+}
+
 // attemtps to re-match points if oscillations are detected
-fn oscillating_case<'a>(points: &'a [(Point, Point)], rtree: &RoadIndex) -> Vec<(Point, Point)> {
+fn oscillating_case(points: &[(Point, Point)], rtree: &RoadIndex) -> Vec<(Point, Point)> {
     debug_assert!(rtree.index.size() > 1);
 
     let iter = points.iter().tuple_windows().map(|(fst, snd, thd)| {
