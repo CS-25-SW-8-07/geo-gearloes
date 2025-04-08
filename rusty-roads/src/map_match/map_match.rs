@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn match_with_varying_noise() {
-        const NOISE: f64 = f64::EPSILON;
+        const NOISE: f64 = 0.00005;
         let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
         let network: MultiLineString<f64> =
             wkt::TryFromWkt::try_from_wkt_str(&TRAJ_277_NEARBY).unwrap();
@@ -235,7 +235,7 @@ mod tests {
         let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
 
         let matched = (1..10).map(|f| {
-            let noisy = add_noise(&traj_orig, NOISE * f as f64*1000.0);
+            let noisy = add_noise(&traj_orig, NOISE * f as f64*10.0);
             let matched = map_match_index(&noisy, &rtree)
                 .into_iter()
                 .flatten_ok()
