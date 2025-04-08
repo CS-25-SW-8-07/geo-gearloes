@@ -81,7 +81,8 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use geo::{wkt, Closest, Coord, Point};
+    use geo::line_measures::FrechetDistance;
+    use geo::{wkt, Closest, Coord, Euclidean, Point};
     use geo_traits::{LineStringTrait, MultiLineStringTrait};
     use geo_types::line_string;
 
@@ -104,11 +105,10 @@ mod tests {
         }
     }
 
-    fn add_noise(ls: &Trajectory) -> Trajectory {
-        const SMALL: f64 = 0.0005;
+    fn add_noise(ls: &Trajectory, noise: f64) -> Trajectory {
         let a = ls
             .points()
-            .map(|Point(Coord { x, y })| Point::new(x + SMALL, y - SMALL));
+            .map(|Point(Coord { x, y })| Point::new(x + noise, y - noise));
         LineString::from_iter(a)
     }
 
@@ -189,7 +189,7 @@ mod tests {
                 .expect("there should be a file here"),
         )
         .unwrap();
-        let noisy = add_noise(&traj_orig);
+        let noisy = add_noise(&traj_orig, 0.0005);
         let file = fs::read_to_string(d.join("277_nearby_roads.txt").to_str().unwrap())
             .expect("there should be a file here");
 
@@ -221,9 +221,39 @@ mod tests {
     }
 
     #[test]
+    fn match_with_varying_noise() {
+        const NOISE: f64 = f64::EPSILON;
+        let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
+        let network: MultiLineString<f64> =
+            wkt::TryFromWkt::try_from_wkt_str(&TRAJ_277_NEARBY).unwrap();
+        let (id, ls): (Vec<u64>, Vec<_>) = network
+            .line_strings()
+            .enumerate()
+            .map(|(id, traj)| (id as u64, traj.clone()))
+            .unzip();
+
+        let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
+
+        let matched = (1..10).map(|f| {
+            let noisy = add_noise(&traj_orig, NOISE * f as f64*1000.0);
+            let matched = map_match_index(&noisy, &rtree)
+                .into_iter()
+                .flatten_ok()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            let matched = LineString::from(matched);
+            let frechet_dist = Euclidean.frechet_distance(&traj_orig, &matched);
+            (frechet_dist,matched)
+        }).zip(0..);
+        for ele in matched {
+            println!("dist: {}\tnoise:{}",ele.0.0,ele.1 as f64 * NOISE);
+        }
+    }
+
+    #[test]
     fn match_noisy_traj() {
         let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
-        let noisy = add_noise(&traj_orig);
+        let noisy = add_noise(&traj_orig, 0.0005);
         let network: MultiLineString<f64> =
             wkt::TryFromWkt::try_from_wkt_str(&TRAJ_277_NEARBY).unwrap();
         let (id, ls): (Vec<u64>, Vec<_>) = network
@@ -245,6 +275,7 @@ mod tests {
         let mut buf = String::new();
         let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
         dbg!(&buf);
+
         assert_eq!(
             traj_orig.0.len(),
             traj.0.len(),
