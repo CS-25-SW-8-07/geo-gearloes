@@ -204,22 +204,28 @@ mod tests {
         let matched = map_match_index(&noisy, &rtree);
         dbg!(&matched);
         assert!(matched.iter().all(|p| p.is_ok_and(|pp| pp.is_some())));
-        let matched = matched.into_iter().flatten_ok().collect::<Result<Vec<_>,_>>().unwrap();
+        let matched = matched
+            .into_iter()
+            .flatten_ok()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
         let traj = LineString::from(matched);
         let mut buf = String::new();
         let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
         dbg!(&buf);
-        assert_eq!(traj_orig.0.len(),traj.0.len(),"original and matched trajectory should have cardinality");
+        assert_eq!(
+            traj_orig.0.len(),
+            traj.0.len(),
+            "original and matched trajectory should have cardinality"
+        );
     }
-    
+
     #[test]
     fn match_noisy_traj() {
-        let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(
-            TRAJ_277
-        )
-        .unwrap();
+        let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
         let noisy = add_noise(&traj_orig);
-        let network: MultiLineString<f64> = wkt::TryFromWkt::try_from_wkt_str(&TRAJ_277_NEARBY).unwrap();
+        let network: MultiLineString<f64> =
+            wkt::TryFromWkt::try_from_wkt_str(&TRAJ_277_NEARBY).unwrap();
         let (id, ls): (Vec<u64>, Vec<_>) = network
             .line_strings()
             .enumerate()
@@ -230,11 +236,19 @@ mod tests {
         let matched = map_match_index(&noisy, &rtree);
         dbg!(&matched);
         assert!(matched.iter().all(|p| p.is_ok_and(|pp| pp.is_some())));
-        let matched = matched.into_iter().flatten_ok().collect::<Result<Vec<_>,_>>().unwrap();
+        let matched = matched
+            .into_iter()
+            .flatten_ok()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
         let traj = LineString::from(matched);
         let mut buf = String::new();
         let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
         dbg!(&buf);
-        assert_eq!(traj_orig.0.len(),traj.0.len(),"original and matched trajectory should have cardinality");
+        assert_eq!(
+            traj_orig.0.len(),
+            traj.0.len(),
+            "original and matched trajectory should have cardinality"
+        );
     }
 }
