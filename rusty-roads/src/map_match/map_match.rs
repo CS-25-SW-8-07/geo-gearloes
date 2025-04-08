@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn match_with_varying_noise() {
-        const NOISE: f64 = 0.00005;
+        const NOISE: f64 = 0.00005*100.0;
         let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
         let network: MultiLineString<f64> =
             wkt::TryFromWkt::try_from_wkt_str(&TRAJ_277_NEARBY).unwrap();
@@ -235,7 +235,7 @@ mod tests {
         let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
 
         let matched = (1..10).map(|f| {
-            let noisy = add_noise(&traj_orig, NOISE * f as f64*10.0);
+            let noisy = add_noise(&traj_orig, NOISE * f as f64);
             let matched = map_match_index(&noisy, &rtree)
                 .into_iter()
                 .flatten_ok()
@@ -245,9 +245,10 @@ mod tests {
             let frechet_dist = Euclidean.frechet_distance(&traj_orig, &matched);
             (frechet_dist,matched)
         }).zip(0..);
-        for ele in matched {
-            println!("dist: {}\tnoise:{}",ele.0.0,ele.1 as f64 * NOISE);
+        for ele in matched.clone() {
+            println!("dist: {}\tnoise:{}",ele.0.0,ele.1 as f64 * NOISE); // use --show-output to show this
         }
+        matched.collect::<Vec<_>>().windows(2).for_each(|e| assert!(e[0].0.0 < e[1].0.0,"frechet distance should be smaller with a lower noise level"));
     }
 
     #[test]
