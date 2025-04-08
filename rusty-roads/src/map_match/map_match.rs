@@ -248,7 +248,7 @@ mod tests {
         assert_eq!(
             traj_orig.0.len(),
             traj.0.len(),
-            "original and matched trajectory should have cardinality"
+            "original and matched trajectory should have same cardinality"
         );
     }
 }
