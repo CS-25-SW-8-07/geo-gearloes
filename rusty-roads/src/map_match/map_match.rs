@@ -78,10 +78,17 @@ fn map_match_index(traj: &Trajectory, index: &RoadIndex) -> Vec<Result<Option<Po
 
 #[cfg(test)]
 mod tests {
-    use geo::{wkt, Closest, Point};
+    use std::fs;
+    use std::path::PathBuf;
+
+    use geo::{wkt, Closest, Coord, Point};
+    use geo_traits::{LineStringTrait, MultiLineStringTrait};
     use geo_types::line_string;
 
     use super::*;
+
+    const TRAJ_277_NEARBY: &str = include_str!("../../resources/277_nearby_roads.txt"); //? might not be windows compatible
+    const TRAJ_277: &str = include_str!("../../resources/277_traj.txt"); //? might not be windows compatible
 
     fn new_road(ls: LineString<f64>) -> Road {
         Road {
@@ -95,6 +102,14 @@ mod tests {
             bridge: false,
             tunnel: false,
         }
+    }
+
+    fn add_noise(ls: &Trajectory) -> Trajectory {
+        const SMALL: f64 = 0.0005;
+        let a = ls
+            .points()
+            .map(|Point(Coord { x, y })| Point::new(x + SMALL, y - SMALL));
+        LineString::from_iter(a)
     }
 
     #[test]
@@ -160,5 +175,66 @@ mod tests {
             .all(|p| p.1.is_ok_and(|p| p.is_some()));
         dbg!(matched);
         assert!(is_ok);
+    }
+
+    #[test]
+    #[ignore]
+    fn noisy_trajectory_match() {
+        // id 277 in porto taxa
+        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        d.push("resources/");
+        dbg!(&d);
+        let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(
+            &fs::read_to_string(d.clone().join("277_traj.txt"))
+                .expect("there should be a file here"),
+        )
+        .unwrap();
+        let noisy = add_noise(&traj_orig);
+        let file = fs::read_to_string(d.join("277_nearby_roads.txt").to_str().unwrap())
+            .expect("there should be a file here");
+
+        let network: MultiLineString<f64> = wkt::TryFromWkt::try_from_wkt_str(&file).unwrap();
+        let (id, ls): (Vec<u64>, Vec<_>) = network
+            .line_strings()
+            .enumerate()
+            .map(|(id, traj)| (id as u64, traj.clone()))
+            .unzip();
+
+        let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
+        let matched = map_match_index(&noisy, &rtree);
+        dbg!(&matched);
+        assert!(matched.iter().all(|p| p.is_ok_and(|pp| pp.is_some())));
+        let matched = matched.into_iter().flatten_ok().collect::<Result<Vec<_>,_>>().unwrap();
+        let traj = LineString::from(matched);
+        let mut buf = String::new();
+        let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
+        dbg!(&buf);
+        assert_eq!(traj_orig.0.len(),traj.0.len(),"original and matched trajectory should have cardinality");
+    }
+    
+    #[test]
+    fn match_noisy_traj() {
+        let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(
+            TRAJ_277
+        )
+        .unwrap();
+        let noisy = add_noise(&traj_orig);
+        let network: MultiLineString<f64> = wkt::TryFromWkt::try_from_wkt_str(&TRAJ_277_NEARBY).unwrap();
+        let (id, ls): (Vec<u64>, Vec<_>) = network
+            .line_strings()
+            .enumerate()
+            .map(|(id, traj)| (id as u64, traj.clone()))
+            .unzip();
+
+        let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
+        let matched = map_match_index(&noisy, &rtree);
+        dbg!(&matched);
+        assert!(matched.iter().all(|p| p.is_ok_and(|pp| pp.is_some())));
+        let matched = matched.into_iter().flatten_ok().collect::<Result<Vec<_>,_>>().unwrap();
+        let traj = LineString::from(matched);
+        let mut buf = String::new();
+        let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
+        dbg!(&buf);
+        assert_eq!(traj_orig.0.len(),traj.0.len(),"original and matched trajectory should have cardinality");
     }
 }
