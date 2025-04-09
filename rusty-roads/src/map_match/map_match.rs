@@ -78,34 +78,20 @@ fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>
         })
         .collect::<Vec<_>>();
 
-    // for (idx, ele) in matched.iter().enumerate().skip(1) {
-    //     let [prev, mid, next] = [matched[idx - 1], matched[idx], matched[idx]]
-    //         .map(|(p, _)| index.index.nearest_neighbor(&p).unwrap());
-
-    //     // figure 6 in paper (oscillating match )
-    //     if prev == next && prev != mid {
-    //         // matched[idx].0 = prev.geom().closest_point(&matched[idx].1);
-    //         matched[idx].0 = match closest(matched[idx].1, prev.geom()).map(|(p, _)| p) {
-    //             Ok(p) => p,
-    //             Err(p) => p,
-    //         };
-    //     }
-    // }
-
     todo!()
 }
 
-fn perpendicular_case(
-    points: &[ADDDD],
+fn perpendicular_case<'a>(
+    points: &'a [ADDDD],
     rtree: &RoadIndex,
     window_size: usize,
-) -> Vec<(Point, Point)> {
+) -> Vec<ADDDD<'a>> {
     debug_assert!(window_size >= 3);
     let res = points.windows(window_size).map(|s| {
         match s {
             [start @ .., last] => {
-                if start.iter().map(|f| f.1 .1).all_equal() { // if all in start is matched to same road, then last should be as well (if direction is equal)
-
+                if start.iter().map(|f| f.1 .1).all_equal()  { // if all in start is matched to same road, then last should be as well (if direction is equal)
+                    todo!()
                 }
             }
             _ => unreachable!(),
