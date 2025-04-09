@@ -63,7 +63,6 @@ pub fn calculate_aabb(
         // Create random scaleable aspect ratio for hiding how the trajectory looks.
         let aspect_ratio: f64 = rng.random_range(min_aspect_ratio..=(1.0 - min_aspect_ratio));
 
-        // let aspect_ratio = min_aspect_ratio;
 
         // Calculate how much to scale the aabb based on anonymity configuration
         let scalar = (min_size
