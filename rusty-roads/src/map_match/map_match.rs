@@ -125,6 +125,9 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
 // this only considers the first road near the trajectory's start
 fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
     const MAX_CANDIDATES: usize = 5;
+
+
+
     let candidate_roads = index
         .index
         .nearest_neighbor_iter_with_distance_2(&Point::from(
@@ -521,5 +524,14 @@ mod tests {
         };
 
         assert_eq!(line_similarity(&LINE, &OTHER_LINE), f64::sqrt(2.0));
+    }
+
+    #[test]
+    #[ignore = "just playing with things"]
+    fn lines_vs_points() {
+        let ls = wkt! {LINESTRING (1.0 2.0, 2.0 3.0, 3.0 4.0, 4.0 5.0)};
+
+        let _ = ls.lines().inspect(|e| println!("{:?}",e)).collect::<Vec<_>>();
+        assert_eq!(ls.lines().count(), ls.points().count()-1)
     }
 }
