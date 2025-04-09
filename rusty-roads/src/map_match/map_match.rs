@@ -99,7 +99,7 @@ fn line_similarity(fst: &Line, snd: &Line) -> f64 {
 
     let res = Line::new(fst.start - snd.start, fst.end - snd.end);
     let output = Euclidean.length(&res);
-    debug_assert!(output >= 0.0 && output <= 2.0);
+    debug_assert!((0.0..=2.0).contains(&output));
     output
 }
 
@@ -131,6 +131,8 @@ fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
             *traj.0.first().expect("trajectory should be nonempty"),
         ))
         .take(MAX_CANDIDATES);
+
+
     let res = candidate_roads.map(|(geom, dist)| {
         let dist_squared: f64 = traj
             .points()
