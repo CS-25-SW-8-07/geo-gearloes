@@ -7,11 +7,13 @@ use crate::Roads;
 use super::super::Road;
 use super::super::RoadWithNode;
 use geo::closest_point::ClosestPoint;
+use geo::line_measures::LengthMeasurable;
 use geo::Closest;
 use geo::Distance;
 use geo::Euclidean;
+use geo::Length;
 use geo::Point;
-use geo::{LineString, MultiLineString};
+use geo::{Line, LineString, MultiLineString};
 use itertools::Itertools;
 use rstar::primitives::GeomWithData;
 use rstar::PointDistance;
@@ -83,11 +85,45 @@ fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>
     todo!()
 }
 
+/// Compares direction of 2 lines
+/// returns a number between 0 and 2 (inclusive) where 0 means their slope is similar and 2 means they are opposite (sqrt(2) meaning a perfect right angle)
+fn line_similarity(fst: &Line, snd: &Line) -> f64 {
+    let fst = Line::new(
+        fst.start / Euclidean.length(fst),
+        fst.end / Euclidean.length(fst),
+    );
+    let snd = Line::new(
+        snd.start / Euclidean.length(snd),
+        snd.end / Euclidean.length(snd),
+    );
+
+    let res = Line::new(fst.start - snd.start, fst.end - snd.end);
+    let output = Euclidean.length(&res);
+    debug_assert!(output >= 0.0 && output <= 2.0);
+    output
+}
+
+// indicates what part of a trajectory should be matched to a singular road
+fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
+    const SIMILARITY_THRESHOLD: f64 = 1.0; //? perhaps it should be an input parameter
+
+    // const MIN_OFFSET: usize = 4;
+    // let mut to: usize = idx + MIN_OFFSET;
+    // let a = traj.points().skip(idx).take(MIN_OFFSET).map(|p|)
+    let a = traj
+        .lines()
+        .skip(idx)
+        .tuple_windows()
+        .map(|(sl, el)| line_similarity(&sl, &el))
+        .enumerate()
+        .take_while(|(_, e)| *e < 1.0)
+        .map(|(e, _)| e);
+
+    a.last().unwrap_or(idx)
+}
+
+// this only considers the first road near the trajectory's start
 fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
-    // let a = index.index.nearest_neighbor_iter(&points);
-    // let a = traj
-    //     .points()
-    //     .map(|p| index.index.nearest_neighbor_iter_with_distance_2(&p));
     const MAX_CANDIDATES: usize = 5;
     let candidate_roads = index
         .index
@@ -95,15 +131,7 @@ fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
             *traj.0.first().expect("trajectory should be nonempty"),
         ))
         .take(MAX_CANDIDATES);
-    // let first = candidate_roads.next().expect("rtree should be nonempty");
-    // let curr_best = first
-    //     .0
-    //     .geom()
-    //     .points()
-    //     .zip(traj.points()) //TODO: find another method of extracting subtrajectory that is close to road
-    //     .map(|(road_p, traj_p)| traj_p.distance_2(&road_p));
-    // .map(|(geom,dist)|);
-    let mut res = candidate_roads.map(|(geom, dist)| {
+    let res = candidate_roads.map(|(geom, dist)| {
         let dist_squared: f64 = traj
             .points()
             .take(geom.geom().0.len()) //? not necesarrily a good way of handling this
@@ -112,8 +140,6 @@ fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
             .sum();
         (geom, dist_squared)
     });
-    // let first = res.next().expect("should be nonempty");
-    // let others = res.take_while(|p| *p<= first).min;
     let best = res
         .min_by(|x, y| x.1.total_cmp(&y.1))
         .expect("candidate set should be nonempty");
@@ -232,7 +258,7 @@ mod tests {
     use std::path::PathBuf;
 
     use geo::line_measures::FrechetDistance;
-    use geo::{wkt, Closest, Coord, Euclidean, Point};
+    use geo::{coord, wkt, Closest, Coord, Euclidean, Point};
     use geo_traits::{LineStringTrait, MultiLineStringTrait};
     use geo_types::line_string;
 
@@ -425,19 +451,19 @@ mod tests {
             .unzip();
 
         let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
-        let matched = map_match_index(&noisy, &rtree);
-        dbg!(&matched);
-        assert!(matched.iter().all(|p| p.is_ok_and(|pp| pp.is_some())));
-        let matched = matched
-            .into_iter()
-            .flatten_ok()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let matched = best_road(&noisy, &rtree);
+        // dbg!(&matched);
+        // assert!(matched.iter().all(|p| p.is_ok_and(|pp| pp.is_some())));
+        // let matched = matched
+        //     .into_iter()
+        //     .flatten_ok()
+        //     .collect::<Result<Vec<_>, _>>()
+        //     .unwrap();
         let traj = LineString::from(matched);
         let mut buf = String::new();
         let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
         dbg!(&buf);
-
+        // assert!(false);
         assert_eq!(
             traj_orig.0.len(),
             traj.0.len(),
@@ -471,10 +497,27 @@ mod tests {
 
         let min_dist = Euclidean.distance(match_target_road, &traj);
         let min_orig_dist = Euclidean.distance(match_target_road, &traj_orig);
-        assert!(frechet_dist <= frechet_orig_dist,"frechet (dissimilarity) should be smaller after map matching");
         assert!(
-            min_dist
-                <= min_orig_dist, "minimum distance should be smaller after map matching"
+            frechet_dist <= frechet_orig_dist,
+            "frechet (dissimilarity) should be smaller after map matching"
+        );
+        assert!(
+            min_dist <= min_orig_dist,
+            "minimum distance should be smaller after map matching"
         )
+    }
+
+    #[test]
+    fn slope() {
+        const LINE: Line = Line {
+            start: coord! {x: 0.,y:0.},
+            end: coord! {x: 0., y: 1.0},
+        };
+        const OTHER_LINE: Line = Line {
+            start: coord! {x:0.0,y:1.0},
+            end: coord! {x:1.0,y:1.0},
+        };
+
+        assert_eq!(line_similarity(&LINE, &OTHER_LINE), f64::sqrt(2.0));
     }
 }
