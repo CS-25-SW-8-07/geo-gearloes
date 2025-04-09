@@ -1,3 +1,6 @@
+use std::iter;
+use std::iter::repeat;
+
 use crate::RoadIndex;
 use crate::Roads;
 
@@ -11,6 +14,7 @@ use geo::Point;
 use geo::{LineString, MultiLineString};
 use itertools::Itertools;
 use rstar::primitives::GeomWithData;
+use rstar::PointDistance;
 
 type Trajectory = LineString<f64>;
 type ADDDD<'a> = (Point, (Point, &'a GeomWithData<LineString<f64>, u64>));
@@ -41,11 +45,9 @@ fn map_match_traj_to_road(traj: &Trajectory, road: impl ClosestPoint<f64>) -> Tr
             Closest::Intersection(i) => Ok(i),
             Closest::Indeterminate => Err(p), //TODO: special case to be handled, perhaps some sliding window magic
         })
-        .collect::<Vec<_>>();
-    // .filter_map(|r| r.ok());
-    // let matched = matched.windows(3).map(|w|);
-    // LineString::from(matched.collect::<Vec<_>>())
-    todo!()
+        .collect::<Result<Vec<_>, _>>();
+    LineString::from(matched.expect("all points should be matched"))
+    // todo!()
 }
 /// an implementation that handles some cases listed in [this paper](https://www.sciencedirect.com/science/article/pii/S0968090X00000267)
 fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>, Point> {
@@ -81,6 +83,46 @@ fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>
     todo!()
 }
 
+fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
+    // let a = index.index.nearest_neighbor_iter(&points);
+    // let a = traj
+    //     .points()
+    //     .map(|p| index.index.nearest_neighbor_iter_with_distance_2(&p));
+    const MAX_CANDIDATES: usize = 5;
+    let candidate_roads = index
+        .index
+        .nearest_neighbor_iter_with_distance_2(&Point::from(
+            *traj.0.first().expect("trajectory should be nonempty"),
+        ))
+        .take(MAX_CANDIDATES);
+    // let first = candidate_roads.next().expect("rtree should be nonempty");
+    // let curr_best = first
+    //     .0
+    //     .geom()
+    //     .points()
+    //     .zip(traj.points()) //TODO: find another method of extracting subtrajectory that is close to road
+    //     .map(|(road_p, traj_p)| traj_p.distance_2(&road_p));
+    // .map(|(geom,dist)|);
+    let mut res = candidate_roads.map(|(geom, dist)| {
+        let dist_squared: f64 = traj
+            .points()
+            .take(geom.geom().0.len()) //? not necesarrily a good way of handling this
+            .zip(repeat(geom.geom()))
+            .map(|(p, ls)| Euclidean.distance(ls, &p).powi(2))
+            .sum();
+        (geom, dist_squared)
+    });
+    // let first = res.next().expect("should be nonempty");
+    // let others = res.take_while(|p| *p<= first).min;
+    let best = res
+        .min_by(|x, y| x.1.total_cmp(&y.1))
+        .expect("candidate set should be nonempty");
+    map_match_traj_to_road(&traj, best.0.geom())
+        .points()
+        .collect()
+    // todo!()
+}
+
 fn perpendicular_case<'a>(
     points: &'a [ADDDD],
     rtree: &RoadIndex,
@@ -90,7 +132,8 @@ fn perpendicular_case<'a>(
     let res = points.windows(window_size).map(|s| {
         match s {
             [start @ .., last] => {
-                if start.iter().map(|f| f.1 .1).all_equal()  { // if all in start is matched to same road, then last should be as well (if direction is equal)
+                if start.iter().map(|f| f.1 .1).all_equal() {
+                    // if all in start is matched to same road, then last should be as well (if direction is equal)
                     todo!()
                 }
             }
@@ -197,6 +240,10 @@ mod tests {
 
     const TRAJ_277_NEARBY: &str = include_str!("../../resources/277_nearby_roads.txt"); //? might not be windows compatible
     const TRAJ_277: &str = include_str!("../../resources/277_traj.txt"); //? might not be windows compatible
+    const INTERSECTION_ROAD_NETWORK: &str =
+        include_str!("../../resources/road_network_intersection.txt");
+    const TRAJ_INTERSECTION_ROAD_NETWORK: &str =
+        include_str!("../../resources/traj_network_intersection.txt");
 
     fn new_road(ls: LineString<f64>) -> Road {
         Road {
@@ -396,5 +443,38 @@ mod tests {
             traj.0.len(),
             "original and matched trajectory should have same cardinality"
         );
+    }
+
+    #[test]
+    fn best_road_test() {
+        let network: MultiLineString =
+            wkt::TryFromWkt::try_from_wkt_str(INTERSECTION_ROAD_NETWORK).unwrap();
+        let traj_orig: Trajectory =
+            wkt::TryFromWkt::try_from_wkt_str(TRAJ_INTERSECTION_ROAD_NETWORK).unwrap();
+
+        let (id, ls): (Vec<u64>, Vec<_>) = network
+            .line_strings()
+            .enumerate()
+            .map(|(id, traj)| (id as u64, traj.clone()))
+            .unzip();
+
+        let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
+
+        let traj = LineString::from(best_road(&traj_orig, &rtree));
+
+        let mut buf = String::new();
+        let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
+        dbg!(&buf);
+        let match_target_road = &network.0[0];
+        let frechet_dist = Euclidean.frechet_distance(match_target_road, &traj);
+        let frechet_orig_dist = Euclidean.frechet_distance(match_target_road, &traj_orig);
+
+        let min_dist = Euclidean.distance(match_target_road, &traj);
+        let min_orig_dist = Euclidean.distance(match_target_road, &traj_orig);
+        assert!(frechet_dist <= frechet_orig_dist,"frechet (dissimilarity) should be smaller after map matching");
+        assert!(
+            min_dist
+                <= min_orig_dist, "minimum distance should be smaller after map matching"
+        )
     }
 }
