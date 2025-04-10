@@ -1,5 +1,5 @@
 use actix_web::{get, http::StatusCode, web, App, HttpResponse, HttpServer, Responder};
-use atlas::{bind, box_query};
+use atlas::box_query;
 use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
@@ -23,7 +23,7 @@ async fn main() -> std::io::Result<()> {
     );
 
     // Use the bind function to get a lazy database pool
-    let pool = atlas::bind(&database_url, None).await.unwrap(); // This is using the `connect_lazy`
+    let pool = atlas::create_pool(&database_url, None).await.unwrap(); // This is using the `connect_lazy`
     println!("Successfully connected to Postgres");
 
     // Start the HTTP server asynchronously with Actix
@@ -43,5 +43,5 @@ wasm_frontend::create_fontend_endpoints!();
 
 #[get("/")]
 async fn index() -> impl Responder {
-    HttpResponse::new(StatusCode::MOVED_PERMANENTLY).
+    HttpResponse::new(StatusCode::MOVED_PERMANENTLY)
 }

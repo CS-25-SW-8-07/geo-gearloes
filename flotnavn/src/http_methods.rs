@@ -1,5 +1,5 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use atlas::{bind, box_query};
+use atlas::box_query;
 use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
@@ -81,4 +81,3 @@ async fn testing123(pool: web::Data<PgPool>) -> impl Responder {
         }
     }
 }
-
