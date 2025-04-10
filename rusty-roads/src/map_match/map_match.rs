@@ -14,6 +14,7 @@ use geo::Euclidean;
 use geo::Length;
 use geo::Point;
 use geo::{Line, LineString, MultiLineString};
+use itertools::put_back;
 use itertools::Itertools;
 use rstar::primitives::GeomWithData;
 use rstar::PointDistance;
@@ -122,9 +123,75 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
     a.last().unwrap_or(idx)
 }
 
+fn best_road_new<I>(sub_traj: I, index: &RoadIndex) -> Vec<Point>
+where
+    I: Iterator<Item = Point>,
+{
+    const MAX_CANDIDATES: usize = 5;
+    let mut sub_traj = put_back(sub_traj);
+    // .peekable();
+    let qp = sub_traj.next().expect("trajectory should be nonempty");
+    let candidate_roads = index
+        .index
+        .nearest_neighbor_iter_with_distance_2(&qp)
+        .take(MAX_CANDIDATES);
+
+    // assert!(sub_traj.put_back(qp).is_none());
+    // .expect("put back slot should be empty");
+    let ls = LineString::from_iter(sub_traj.with_value(qp));
+    let res = candidate_roads.map(|(geom, dist)| {
+        let dist_squared: f64 = ls
+            .points()
+            .take(geom.geom().0.len()) //? not necessarily a good way of handling this
+            .zip(repeat(geom.geom()))
+            .map(|(p, ls)| Euclidean.distance(ls, &p).powi(2))
+            .sum();
+        (geom, dist_squared)
+    });
+    let best = res
+        .min_by(|x, y| x.1.total_cmp(&y.1))
+        .expect("candidate set should be nonempty");
+    map_match_traj_to_road(&ls, best.0.geom())
+        .points()
+        .collect_vec()
+}
+
+fn best(traj: &Trajectory, index: &RoadIndex) -> Trajectory {
+    let mut idx = 0;
+    let mut matched: Vec<Point> = Vec::with_capacity(traj.0.len());
+
+    while idx <= traj.0.len() {
+        let count = when_to_skip(idx, traj, index);
+        idx = count;
+        let mut points = traj.points().skip(idx).take(count);
+
+        matched.extend(best_road_new(points, index));
+    }
+    debug_assert_eq!(
+        traj.0.len(),
+        matched.len(),
+        "matched trajectory should have same cardinality as input\n\t |input|={} |matched|={}",
+        traj.0.len(),
+        matched.len()
+    );
+    LineString::from(matched)
+}
+
 // this only considers the first road near the trajectory's start
+#[deprecated = "use `best` instead"]
 fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
     const MAX_CANDIDATES: usize = 5;
+
+    // let mut idx = 0;
+    // let mut matched: Vec<Point> = Vec::with_capacity(traj.0.len());
+
+    // while idx <= traj.0.len() {
+    //     let count = when_to_skip(idx, traj, index);
+    //     idx = count;
+    //     let mut points = traj.points().skip(idx).take(count);
+
+    //     // matched.extend(todo!());
+    // }
 
     let candidate_roads = index
         .index
@@ -260,7 +327,7 @@ mod tests {
     use std::path::PathBuf;
 
     use geo::line_measures::FrechetDistance;
-    use geo::{coord, wkt, Closest, Coord, Euclidean, Point};
+    use geo::{coord, wkt, Closest, Coord, Euclidean, Point, Within};
     use geo_traits::{LineStringTrait, MultiLineStringTrait};
     use geo_types::line_string;
 
@@ -489,7 +556,9 @@ mod tests {
         let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
 
         let traj = LineString::from(best_road(&traj_orig, &rtree));
-
+        let new_traj = LineString::from(best_road_new(traj.points(), &rtree));
+        let dist = Euclidean.frechet_distance(&traj, &new_traj);
+        assert!((0.0 - dist) < 0.0000001, "frechet dist = {dist}");
         let mut buf = String::new();
         let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
         dbg!(&buf);
