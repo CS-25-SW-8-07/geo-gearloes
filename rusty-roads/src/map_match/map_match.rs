@@ -100,7 +100,7 @@ fn line_similarity(fst: &Line, snd: &Line) -> f64 {
     let res = Line::new(fst.start - snd.start, fst.end - snd.end);
     let length = match Euclidean.length(&res) {
         l if l.is_normal() => {l},
-        _ => {2.0},
+        _ => {0.},
     };
     debug_assert!((0.0..=2.0).contains(&length),"{length}");
     length
@@ -115,12 +115,12 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
     // let a = traj.points().skip(idx).take(MIN_OFFSET).map(|p|)
     let a = traj
         .lines() //Note: this iterator yields 1 less element compared to .points()
-        .skip(idx)
         .enumerate()
+        .skip(idx)
         .tuple_windows()
         .map(|(sl, el)| (sl.0,line_similarity(&sl.1, &el.1)))
-        .take_while(|(i, e)| *e < 1.0)
-        .map(|(e, _)| e*2);
+        .take_while(|(i, e)| dbg!(*e < 1.0))
+        .map(|(e, _)| dbg!(e));
     // dbg!(a.count());
     let res = a.last();
     // .unwrap_or(idx);
@@ -134,7 +134,7 @@ where
     const MAX_CANDIDATES: usize = 5;
     let mut sub_traj = put_back(sub_traj);
     // .peekable();
-    let qp = dbg!(sub_traj.next());
+    let qp = sub_traj.next();
     // .expect("trajectory should be nonempty");
     qp.map(|p| {
         let candidate_roads = index
@@ -172,8 +172,8 @@ fn best(traj: &Trajectory, index: &RoadIndex) -> Trajectory {
     while idx < traj.0.len() {
         let count = when_to_skip(idx, traj, index);
         let points = traj.points().skip(idx).take(count);
-        idx = count+1;
-        dbg!((count, idx));
+        idx = count +1;
+        dbg!((count, idx,traj.0.len()));
         // dbg!(traj.points().count());
         // dbg!(traj.points().skip(idx).take(count).take(count).next());
         matched.extend(best_road_new(points, index));
