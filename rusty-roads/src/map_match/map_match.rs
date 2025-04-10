@@ -112,15 +112,17 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
     // let mut to: usize = idx + MIN_OFFSET;
     // let a = traj.points().skip(idx).take(MIN_OFFSET).map(|p|)
     let a = traj
-        .lines()
+        .lines() //Note: this iterator yields 1 less element compared to .points()
         .skip(idx)
-        .tuple_windows()
-        .map(|(sl, el)| line_similarity(&sl, &el))
         .enumerate()
-        .take_while(|(_, e)| *e < 1.0)
-        .map(|(e, _)| e);
-
-    a.last().unwrap_or(idx)
+        .tuple_windows()
+        .map(|(sl, el)| (sl.0,line_similarity(&sl.1, &el.1)))
+        .take_while(|(i, e)| *e < 1.0)
+        .map(|(e, _)| e*2);
+    // dbg!(a.count());
+    let res = a.last();
+    // .unwrap_or(idx);
+    res.unwrap_or(idx)
 }
 
 fn best_road_new<I>(sub_traj: I, index: &RoadIndex) -> Vec<Point>
@@ -130,41 +132,48 @@ where
     const MAX_CANDIDATES: usize = 5;
     let mut sub_traj = put_back(sub_traj);
     // .peekable();
-    let qp = sub_traj.next().expect("trajectory should be nonempty");
-    let candidate_roads = index
-        .index
-        .nearest_neighbor_iter_with_distance_2(&qp)
-        .take(MAX_CANDIDATES);
+    let qp = dbg!(sub_traj.next());
+    // .expect("trajectory should be nonempty");
+    qp.map(|p| {
+        let candidate_roads = index
+            .index
+            .nearest_neighbor_iter_with_distance_2(&p)
+            .take(MAX_CANDIDATES);
 
-    // assert!(sub_traj.put_back(qp).is_none());
-    // .expect("put back slot should be empty");
-    let ls = LineString::from_iter(sub_traj.with_value(qp));
-    let res = candidate_roads.map(|(geom, dist)| {
-        let dist_squared: f64 = ls
+        // assert!(sub_traj.put_back(qp).is_none());
+        // .expect("put back slot should be empty");
+        let ls = LineString::from_iter(sub_traj.with_value(p));
+        let res = candidate_roads.map(|(geom, dist)| {
+            let dist_squared: f64 = ls
+                .points()
+                .take(geom.geom().0.len()) //? not necessarily a good way of handling this
+                .zip(repeat(geom.geom()))
+                .map(|(p, ls)| Euclidean.distance(ls, &p).powi(2))
+                .sum();
+            (geom, dist_squared)
+        });
+        let best = res
+            .min_by(|x, y| x.1.total_cmp(&y.1))
+            .expect("candidate set should be nonempty");
+
+        map_match_traj_to_road(&ls, best.0.geom())
             .points()
-            .take(geom.geom().0.len()) //? not necessarily a good way of handling this
-            .zip(repeat(geom.geom()))
-            .map(|(p, ls)| Euclidean.distance(ls, &p).powi(2))
-            .sum();
-        (geom, dist_squared)
-    });
-    let best = res
-        .min_by(|x, y| x.1.total_cmp(&y.1))
-        .expect("candidate set should be nonempty");
-    map_match_traj_to_road(&ls, best.0.geom())
-        .points()
-        .collect_vec()
+            .collect_vec()
+    })
+    .unwrap_or(vec![])
 }
 
 fn best(traj: &Trajectory, index: &RoadIndex) -> Trajectory {
     let mut idx = 0;
     let mut matched: Vec<Point> = Vec::with_capacity(traj.0.len());
 
-    while idx <= traj.0.len() {
+    while idx < traj.0.len() {
         let count = when_to_skip(idx, traj, index);
+        let points = traj.points().skip(idx).take(count);
         idx = count;
-        let mut points = traj.points().skip(idx).take(count);
-
+        dbg!((count, idx));
+        // dbg!(traj.points().count());
+        dbg!(traj.points().skip(idx).take(count).take(count).next());
         matched.extend(best_road_new(points, index));
     }
     debug_assert_eq!(
@@ -541,6 +550,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "old implementation"]
     fn best_road_test() {
         let network: MultiLineString =
             wkt::TryFromWkt::try_from_wkt_str(INTERSECTION_ROAD_NETWORK).unwrap();
@@ -575,7 +585,45 @@ mod tests {
         assert!(
             min_dist <= min_orig_dist,
             "minimum distance should be smaller after map matching"
-        )
+        );
+    }
+
+    #[test]
+    fn new_best_test() {
+        let network: MultiLineString =
+            wkt::TryFromWkt::try_from_wkt_str(INTERSECTION_ROAD_NETWORK).unwrap();
+        let traj_orig: Trajectory =
+            wkt::TryFromWkt::try_from_wkt_str(TRAJ_INTERSECTION_ROAD_NETWORK).unwrap();
+
+        let (id, ls): (Vec<u64>, Vec<_>) = network
+            .line_strings()
+            .enumerate()
+            .map(|(id, traj)| (id as u64, traj.clone()))
+            .unzip();
+
+        let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
+
+        let traj = best(&traj_orig, &rtree);
+        dbg!(Euclidean.frechet_distance(&traj_orig, &traj));
+        let mut buf = String::new();
+        let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
+        dbg!(&buf);
+        dbg!(Euclidean.length(&traj_orig) - Euclidean.length(&traj));
+
+        let match_target_road = &network.0[0];
+        let frechet_dist = Euclidean.frechet_distance(match_target_road, &traj);
+        let frechet_orig_dist = Euclidean.frechet_distance(match_target_road, &traj_orig);
+
+        let min_dist = Euclidean.distance(match_target_road, &traj);
+        let min_orig_dist = Euclidean.distance(match_target_road, &traj_orig);
+        assert!(
+            frechet_dist <= frechet_orig_dist,
+            "frechet (dissimilarity) should be smaller after map matching"
+        );
+        assert!(
+            min_dist <= min_orig_dist,
+            "minimum distance should be smaller after map matching"
+        );
     }
 
     #[test]
