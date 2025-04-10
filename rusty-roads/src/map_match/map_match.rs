@@ -97,11 +97,13 @@ fn line_similarity(fst: &Line, snd: &Line) -> f64 {
         snd.start / Euclidean.length(snd),
         snd.end / Euclidean.length(snd),
     );
-
     let res = Line::new(fst.start - snd.start, fst.end - snd.end);
-    let output = Euclidean.length(&res);
-    debug_assert!((0.0..=2.0).contains(&output));
-    output
+    let length = match Euclidean.length(&res) {
+        l if l.is_normal() => {l},
+        _ => {2.0},
+    };
+    debug_assert!((0.0..=2.0).contains(&length),"{length}");
+    length
 }
 
 // indicates what part of a trajectory should be matched to a singular road
@@ -170,10 +172,10 @@ fn best(traj: &Trajectory, index: &RoadIndex) -> Trajectory {
     while idx < traj.0.len() {
         let count = when_to_skip(idx, traj, index);
         let points = traj.points().skip(idx).take(count);
-        idx = count;
+        idx = count+1;
         dbg!((count, idx));
         // dbg!(traj.points().count());
-        dbg!(traj.points().skip(idx).take(count).take(count).next());
+        // dbg!(traj.points().skip(idx).take(count).take(count).next());
         matched.extend(best_road_new(points, index));
     }
     debug_assert_eq!(
@@ -624,6 +626,44 @@ mod tests {
             min_dist <= min_orig_dist,
             "minimum distance should be smaller after map matching"
         );
+    }
+    #[test]
+    fn new_best_test_277() {
+        let network: MultiLineString =
+            wkt::TryFromWkt::try_from_wkt_str(TRAJ_277_NEARBY).unwrap();
+        let traj_orig: Trajectory =
+            wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
+
+        let (id, ls): (Vec<u64>, Vec<_>) = network
+            .line_strings()
+            .enumerate()
+            .map(|(id, traj)| (id as u64, traj.clone()))
+            .unzip();
+
+        let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
+
+        let traj = best(&traj_orig, &rtree);
+        dbg!(Euclidean.frechet_distance(&traj_orig, &traj));
+        let mut buf = String::new();
+        let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
+        dbg!(&buf);
+        dbg!(Euclidean.length(&traj_orig) - Euclidean.length(&traj));
+        assert!(false);
+
+        // let match_target_road = &network.0[0];
+        // let frechet_dist = Euclidean.frechet_distance(match_target_road, &traj);
+        // let frechet_orig_dist = Euclidean.frechet_distance(match_target_road, &traj_orig);
+
+        // let min_dist = Euclidean.distance(match_target_road, &traj);
+        // let min_orig_dist = Euclidean.distance(match_target_road, &traj_orig);
+        // assert!(
+        //     frechet_dist <= frechet_orig_dist,
+        //     "frechet (dissimilarity) should be smaller after map matching"
+        // );
+        // assert!(
+        //     min_dist <= min_orig_dist,
+        //     "minimum distance should be smaller after map matching"
+        // );
     }
 
     #[test]
