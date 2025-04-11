@@ -119,8 +119,8 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
         .skip(idx)
         .tuple_windows()
         .map(|(sl, el)| (sl.0,line_similarity(&sl.1, &el.1)))
-        .take_while(|(i, e)| dbg!(*e < 1.0))
-        .map(|(e, _)| dbg!(e));
+        .take_while(|(i, e)| *e < 1.0)
+        .map(|(e, _)| e);
     // dbg!(a.count());
     let res = a.last();
     // .unwrap_or(idx);
@@ -134,7 +134,7 @@ where
     const MAX_CANDIDATES: usize = 5;
     let mut sub_traj = put_back(sub_traj);
     // .peekable();
-    let qp = sub_traj.next();
+    let qp = sub_traj.next(); //TODO instead of picking road with least distance to point, use line segment instead (segment to segment match)
     // .expect("trajectory should be nonempty");
     qp.map(|p| {
         let candidate_roads = index
@@ -170,13 +170,15 @@ fn best(traj: &Trajectory, index: &RoadIndex) -> Trajectory {
     let mut matched: Vec<Point> = Vec::with_capacity(traj.0.len());
 
     while idx < traj.0.len() {
-        let count = when_to_skip(idx, traj, index);
-        let points = traj.points().skip(idx).take(count);
-        idx = count +1;
-        dbg!((count, idx,traj.0.len()));
+        let count = when_to_skip(idx+1, traj, index);
+        let points = traj.points().skip(idx).take(count-idx);
+        // dbg!(traj.points().skip(idx).take(count).count());
+        // dbg!((count, idx,traj.0.len()));
+        idx = count;
         // dbg!(traj.points().count());
         // dbg!(traj.points().skip(idx).take(count).take(count).next());
         matched.extend(best_road_new(points, index));
+        // dbg!(matched.len());
     }
     debug_assert_eq!(
         traj.0.len(),
@@ -229,6 +231,7 @@ fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
     // todo!()
 }
 
+#[deprecated]
 fn perpendicular_case<'a>(
     points: &'a [ADDDD],
     rtree: &RoadIndex,
