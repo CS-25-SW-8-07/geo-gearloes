@@ -1,4 +1,5 @@
 pub mod anonymity;
+pub mod model;
 mod error;
 
 use derive_more::From;
