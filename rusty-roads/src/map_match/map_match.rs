@@ -99,10 +99,10 @@ fn line_similarity(fst: &Line, snd: &Line) -> f64 {
     );
     let res = Line::new(fst.start - snd.start, fst.end - snd.end);
     let length = match Euclidean.length(&res) {
-        l if l.is_normal() => {l},
-        _ => {0.},
+        l if l.is_normal() => l,
+        _ => 0.,
     };
-    debug_assert!((0.0..=2.0).contains(&length),"{length}");
+    debug_assert!((0.0..=2.0).contains(&length), "{length}");
     length
 }
 
@@ -118,7 +118,7 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
         .enumerate()
         .skip(idx)
         .tuple_windows()
-        .map(|(sl, el)| (sl.0,line_similarity(&sl.1, &el.1)))
+        .map(|(sl, el)| (sl.0, line_similarity(&sl.1, &el.1)))
         .take_while(|(i, e)| *e < 1.0)
         .map(|(e, _)| e);
     // dbg!(a.count());
@@ -135,7 +135,7 @@ where
     let mut sub_traj = put_back(sub_traj);
     // .peekable();
     let qp = sub_traj.next(); //TODO instead of picking road with least distance to point, use line segment instead (segment to segment match)
-    // .expect("trajectory should be nonempty");
+                              // .expect("trajectory should be nonempty");
     qp.map(|p| {
         let candidate_roads = index
             .index
@@ -170,8 +170,8 @@ fn best(traj: &Trajectory, index: &RoadIndex) -> Trajectory {
     let mut matched: Vec<Point> = Vec::with_capacity(traj.0.len());
 
     while idx < traj.0.len() {
-        let count = when_to_skip(idx+1, traj, index);
-        let points = traj.points().skip(idx).take(count-idx);
+        let count = when_to_skip(idx + 1, traj, index);
+        let points = traj.points().skip(idx).take(count - idx);
         // dbg!(traj.points().skip(idx).take(count).count());
         // dbg!((count, idx,traj.0.len()));
         idx = count;
@@ -632,10 +632,8 @@ mod tests {
     }
     #[test]
     fn new_best_test_277() {
-        let network: MultiLineString =
-            wkt::TryFromWkt::try_from_wkt_str(TRAJ_277_NEARBY).unwrap();
-        let traj_orig: Trajectory =
-            wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
+        let network: MultiLineString = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277_NEARBY).unwrap();
+        let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
 
         let (id, ls): (Vec<u64>, Vec<_>) = network
             .line_strings()
