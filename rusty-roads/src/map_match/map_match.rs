@@ -152,12 +152,10 @@ where
                 Some((g, f_dist + l_dist))
             })
             .min_by(|(_, fst), (_, snd)| fst.total_cmp(snd))
-            .ok_or_else(|| (idx, l))?; // unlikely, but can be triggered if all nn's have indeterminate closest point
+            .ok_or( (idx, l))?; // unlikely, but can be triggered if all nn's have indeterminate closest point
         let start_matched = closest(&l.start_point(), best.geom()).map_err(|_| (idx,l))?;
         let end_matched = closest(&l.end_point(), best.geom()).map_err(|_| (idx,l))?;
-        // let result = start_matched
-        //     .and_then(|fp| end_matched.and_then(|sp| Ok((fp, sp))))
-        //     .map_err(|_| (idx, l));
+
         Ok((start_matched,end_matched))
     });
 
