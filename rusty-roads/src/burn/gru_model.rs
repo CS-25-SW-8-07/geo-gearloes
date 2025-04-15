@@ -8,14 +8,14 @@ use burn::{
 };
 
 pub struct Model<B: Backend> {
-    output_dim: usize,
-    gru1: Gru<B>,
-    gru2: Gru<B>,
-    pool: AdaptiveAvgPool2d,
-    dropout: Dropout,
-    linear1: Linear<B>,
-    linear2: Linear<B>,
-    activation: Relu,
+    pub output_dim: usize,
+    pub gru1: Gru<B>,
+    pub gru2: Gru<B>,
+    pub pool: AdaptiveAvgPool2d,
+    pub dropout: Dropout,
+    pub linear1: Linear<B>,
+    pub linear2: Linear<B>,
+    pub activation: Relu,
 }
 
 #[derive(Config, Debug)]
@@ -25,3 +25,4 @@ pub struct ModelConfig {
     #[config(default = "0.5")]
     pub dropout: f64,
 }
+
