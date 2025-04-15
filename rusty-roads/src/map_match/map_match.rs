@@ -7,6 +7,7 @@ use geo::closest_point::ClosestPoint;
 use geo::Closest;
 use geo::Distance;
 use geo::Euclidean;
+use geo::Geodesic;
 use geo::Length;
 use geo::Point;
 use geo::{Line, LineString, MultiLineString};
@@ -38,15 +39,15 @@ impl ClosestPoint<f64> for RoadWithNode<'_> {
 /// returns a number between 0 and 2 (inclusive) where 0 means their direction is identical and 2 means they are opposite (sqrt(2) meaning a perfect right angle)
 fn line_similarity(fst: &Line, snd: &Line) -> f64 {
     let fst = Line::new(
-        fst.start / Euclidean.length(fst),
-        fst.end / Euclidean.length(fst),
+        fst.start / Geodesic.length(fst),
+        fst.end / Geodesic.length(fst),
     );
     let snd = Line::new(
-        snd.start / Euclidean.length(snd),
-        snd.end / Euclidean.length(snd),
+        snd.start / Geodesic.length(snd),
+        snd.end / Geodesic.length(snd),
     );
     let res = Line::new(fst.start - snd.start, fst.end - snd.end);
-    let length = match Euclidean.length(&res) {
+    let length = match Geodesic.length(&res) {
         l if l.is_normal() => l,
         _ => 0.,
     };
@@ -84,7 +85,7 @@ pub fn segment_match<I>(sub_traj: I, index: &RoadIndex) -> Result<Vec<Line>, (us
 where
     I: Iterator<Item = Line>,
 {
-    const MAX_CANDIDATES: usize = 20; // completely arbitrary
+    const MAX_CANDIDATES: usize = 20/2; // max k in index knn query // completely arbitrary
 
     debug_assert!(index.index.size() >= 1, "rtree index should be nonempty");
 
@@ -107,8 +108,8 @@ where
                 let (closest_start, _) = closest(&l.start_point(), g.geom()).ok()?;
                 let (closest_end, _) = closest(&l.end_point(), g.geom()).ok()?; // Note: if every candidate causes a None value here, the matched trajectory will have smaller cardinality
 
-                let f_dist = Euclidean.distance(closest_start, l.start_point());
-                let l_dist = Euclidean.distance(closest_end, l.end_point());
+                let f_dist = Geodesic.distance(closest_start, l.start_point());
+                let l_dist = Geodesic.distance(closest_end, l.end_point());
                 let w = match closest_start == closest_end {
                     false => 1.0,
                     true => 2.0, // also completely arbitrary
@@ -238,12 +239,12 @@ mod tests {
         traj.extend(s.iter());
         let traj = LineString::from_iter(traj.iter().cloned().cloned());
         // let traj = LineString::from_iter(f.iter().interleave(s.iter()).cloned());
-        dbg!(Euclidean.frechet_distance(&traj_orig, &traj));
+        dbg!(Geodesic.frechet_distance(&traj_orig, &traj));
         let mut buf = String::new();
         let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
         dbg!(&buf);
         // assert!(false);
-        dbg!(Euclidean.length(&traj_orig) - Euclidean.length(&traj));
+        dbg!(Geodesic.length(&traj_orig) - Geodesic.length(&traj));
         assert_eq!(traj_orig.0.len(), traj.0.len());
     }
 
@@ -258,7 +259,8 @@ mod tests {
             end: coord! {x:1.0,y:1.0},
         };
 
-        assert_eq!(line_similarity(&LINE, &OTHER_LINE), f64::sqrt(2.0));
+        let line_sim = line_similarity(&LINE, &OTHER_LINE);
+        assert!((line_sim- f64::sqrt(2.0)).abs() < 0.001,"\tLeft = {}\n\tRight = {}",line_sim,f64::sqrt(2.0));
     }
 
     #[test]
