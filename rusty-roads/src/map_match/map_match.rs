@@ -106,6 +106,7 @@ fn line_similarity(fst: &Line, snd: &Line) -> f64 {
 }
 
 // indicates what part of a trajectory should be matched to a singular road
+#[deprecated]
 fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
     const SIMILARITY_THRESHOLD: f64 = 1.0; //? perhaps it should be an input parameter
 
@@ -129,7 +130,7 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
 ///
 /// # Errors
 ///
-/// This function will return an error if .
+/// This function will return an error if any point in the trajectory cannot be matched (i.e. closest point is indeterminate).
 ///
 /// # Example
 /// ```
@@ -146,7 +147,6 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
 /// let rtree = RoadIndex::from_ids_and_roads(&ids, &lss);
 /// let matched = segment_match(traj.lines(),&rtree);
 /// assert_eq!(matched.unwrap().len(), traj.lines().count());
-/// //assert!(matched.is_ok_and(|p| p.len()==traj.0.len()));
 /// ```
 pub fn segment_match<I>(sub_traj: I, index: &RoadIndex) -> Result<Vec<Line>, (usize, Line)>
 where
