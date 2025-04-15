@@ -7,27 +7,18 @@ use crate::Roads;
 use super::super::Road;
 use super::super::RoadWithNode;
 use geo::closest_point::ClosestPoint;
-use geo::line_measures::LengthMeasurable;
-use geo::polygon;
-use geo::wkt;
 use geo::Closest;
 use geo::Distance;
 use geo::Euclidean;
-use geo::GeodesicArea;
 use geo::Length;
 use geo::Point;
-use geo::Polygon;
-use geo::RemoveRepeatedPoints;
 use geo::{Line, LineString, MultiLineString};
-use geo_traits::PointTrait;
-use itertools::put_back;
 use itertools::put_back_n;
 use itertools::Itertools;
 use rstar::primitives::GeomWithData;
-use rstar::PointDistance;
 
 type Trajectory = LineString<f64>;
-type ADDDD<'a> = (Point, (Point, &'a GeomWithData<LineString<f64>, u64>));
+type ADDDD<'a> = (Point, (Point, &'a GeomWithData<LineString<f64>, u64>)); 
 
 impl ClosestPoint<f64> for Road {
     fn closest_point(&self, p: &geo::Point<f64>) -> geo::Closest<f64> {
@@ -134,11 +125,11 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
     res.unwrap_or(idx)
 }
 
-fn segment_match<I>(sub_traj: I, index: &RoadIndex) -> Result<Vec<Line>, (usize, Line)>
+pub fn segment_match<I>(sub_traj: I, index: &RoadIndex) -> Result<Vec<Line>, (usize, Line)>
 where
     I: Iterator<Item = Line>,
 {
-    const MAX_CANDIDATES: usize = 20;
+    const MAX_CANDIDATES: usize = 20; // completely arbitrary
 
     let matched = sub_traj.enumerate().map(|(idx, l)| {
         let candidate_roads_start = index
@@ -183,9 +174,9 @@ where
             //     Some((g, poly))
             // })
             .filter_map(|(g, _)| {
-                let (closest_start, _) = closest(&l.start_point(), &g.geom()).ok()?;
+                let (closest_start, _) = closest(&l.start_point(), g.geom()).ok()?;
                 // let closest_start = closest_start.coord().expect("should be infallible");
-                let (closest_end, _) = closest(&l.end_point(), &g.geom()).ok()?; // Note: if every candidate causes a None value here, the matched trajectory will have smaller cardinality
+                let (closest_end, _) = closest(&l.end_point(), g.geom()).ok()?; // Note: if every candidate causes a None value here, the matched trajectory will have smaller cardinality
                                                                                  // let closest_end = closest_end.coord().expect("should be infallible");
 
                 let f_dist = Euclidean.distance(closest_start, l.start_point());
@@ -201,8 +192,8 @@ where
             //         .total_cmp(&snd.geodesic_area_signed().abs())
             // }) // this will not work correctly for very large polygons
             .expect("there should be at least one candidate"); // this is not guaranteed
-        let start_matched = closest(&l.start_point(), &best.geom());
-        let end_matched = closest(&l.end_point(), &best.geom());
+        let start_matched = closest(&l.start_point(), best.geom());
+        let end_matched = closest(&l.end_point(), best.geom());
         let result = start_matched
             .and_then(|fp| end_matched.and_then(|sp| Ok((fp, sp))))
             .map_err(|_| (idx, l));
@@ -251,7 +242,7 @@ where
             .points()
             .collect_vec()
     })
-    .unwrap_or(vec![])
+    .unwrap_or_default()
 }
 
 fn best(traj: &Trajectory, index: &RoadIndex) -> Trajectory {
@@ -314,13 +305,13 @@ fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
     let best = res
         .min_by(|x, y| x.1.total_cmp(&y.1))
         .expect("candidate set should be nonempty");
-    map_match_traj_to_road(&traj, best.0.geom())
+    map_match_traj_to_road(traj, best.0.geom())
         .points()
         .collect()
     // todo!()
 }
 
-#[deprecated]
+#[deprecated= "not going to implement"]
 fn perpendicular_case<'a>(
     points: &'a [ADDDD],
     rtree: &RoadIndex,
@@ -376,7 +367,7 @@ fn oscillating_case(points: &[(Point, Point)], rtree: &RoadIndex) -> Vec<(Point,
 }
 
 fn closest(p: &Point, first_nn: &LineString) -> Result<(Point, Point), Point> {
-    match first_nn.closest_point(&p) {
+    match first_nn.closest_point(p) {
         Closest::SinglePoint(s) => Ok((s, *p)),
         Closest::Intersection(i) => Ok((i, *p)),
         Closest::Indeterminate => Err(*p),
