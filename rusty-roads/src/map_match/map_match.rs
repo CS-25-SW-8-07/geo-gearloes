@@ -125,6 +125,7 @@ where
     I: Iterator<Item = Line>,
 {
     const MAX_CANDIDATES: usize = 20; // completely arbitrary
+    debug_assert!(index.index.size() > 1, "rtree index should be nonempty");
 
     let matched = sub_traj.enumerate().map(|(idx, l)| {
         let candidate_roads_start = index
@@ -136,12 +137,13 @@ where
             .nearest_neighbor_iter_with_distance_2(&l.end_point())
             .take(MAX_CANDIDATES);
 
+        // gather candidate roads from start and end roads
         let all_candidates = candidate_roads_start.chain(candidate_roads_end);
 
+        // find the road with with smallest distance to a line segment
         let (best, _dist) = all_candidates
             .filter_map(|(g, _)| {
                 let (closest_start, _) = closest(&l.start_point(), g.geom()).ok()?;
-                // let closest_start = closest_start.coord().expect("should be infallible");
                 let (closest_end, _) = closest(&l.end_point(), g.geom()).ok()?; // Note: if every candidate causes a None value here, the matched trajectory will have smaller cardinality
 
                 let f_dist = Euclidean.distance(closest_start, l.start_point());
@@ -150,18 +152,17 @@ where
                 Some((g, f_dist + l_dist))
             })
             .min_by(|(_, fst), (_, snd)| fst.total_cmp(snd))
-            .expect("there should be at least one candidate"); // this is not guaranteed
-        let start_matched = closest(&l.start_point(), best.geom());
-        let end_matched = closest(&l.end_point(), best.geom());
-        let result = start_matched
-            .and_then(|fp| end_matched.and_then(|sp| Ok((fp, sp))))
-            .map_err(|_| (idx, l));
-        result
+            .ok_or_else(|| (idx, l))?; // unlikely, but can be triggered if all nn's have indeterminate closest point
+        let start_matched = closest(&l.start_point(), best.geom()).map_err(|_| (idx,l))?;
+        let end_matched = closest(&l.end_point(), best.geom()).map_err(|_| (idx,l))?;
+        // let result = start_matched
+        //     .and_then(|fp| end_matched.and_then(|sp| Ok((fp, sp))))
+        //     .map_err(|_| (idx, l));
+        Ok((start_matched,end_matched))
     });
 
     let result: Result<Vec<_>, (usize, Line)> =
         matched.map_ok(|(a, b)| Line::new(a.0, b.0)).try_collect();
-    // .try_fold(vec![], |mut acc,r|r.map(|(a,b) | acc.push(a)) );
     result
 }
 
@@ -173,15 +174,12 @@ where
     let mut sub_traj = put_back_n(sub_traj);
     let qp = sub_traj.next(); //TODO instead of picking road with least distance to point, use line segment instead (segment to segment match)
 
-    // .expect("trajectory should be nonempty");
     qp.map(|p| {
         let candidate_roads = index
             .index
             .nearest_neighbor_iter_with_distance_2(&p)
             .take(MAX_CANDIDATES);
 
-        // assert!(sub_traj.put_back(qp).is_none());
-        // .expect("put back slot should be empty");
         sub_traj.put_back(p);
         let ls = LineString::from_iter(sub_traj);
         let res = candidate_roads.map(|(geom, dist)| {
@@ -204,6 +202,7 @@ where
     .unwrap_or_default()
 }
 
+#[deprecated = "will also be removed, see `segment_match`"]
 fn best(traj: &Trajectory, index: &RoadIndex) -> Trajectory {
     let mut idx = 0;
     let mut matched: Vec<Point> = Vec::with_capacity(traj.0.len());
@@ -268,31 +267,6 @@ fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
         .points()
         .collect()
     // todo!()
-}
-
-#[deprecated = "not going to implement"]
-fn perpendicular_case<'a>(
-    points: &'a [ADDDD],
-    rtree: &RoadIndex,
-    window_size: usize,
-) -> Vec<ADDDD<'a>> {
-    debug_assert!(window_size >= 3);
-    let res = points.windows(window_size).map(|s| {
-        match s {
-            [start @ .., last] => {
-                if start.iter().map(|f| f.1 .1).all_equal() {
-                    // if all in start is matched to same road, then last should be as well (if direction is equal)
-                    todo!()
-                }
-            }
-            _ => unreachable!(),
-        }
-    });
-    // for (fst, mid, lst) in points.iter().tuple_windows() {
-    //     // if fst.1.1 == snd.1.1
-    // }
-
-    todo!()
 }
 
 // attemtps to re-match points if oscillations are detected
