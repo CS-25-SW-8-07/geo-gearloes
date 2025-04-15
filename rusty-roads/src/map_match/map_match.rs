@@ -143,7 +143,7 @@ where
 
         let all_candidates = candidate_roads_start.chain(candidate_roads_end);
 
-        let (best, best_poly) = all_candidates
+        let (best, _dist) = all_candidates
             .filter_map(|(g, _)| {
                 let (closest_start, _) = closest(&l.start_point(), g.geom()).ok()?;
                 // let closest_start = closest_start.coord().expect("should be infallible");
