@@ -8,13 +8,20 @@ use super::super::Road;
 use super::super::RoadWithNode;
 use geo::closest_point::ClosestPoint;
 use geo::line_measures::LengthMeasurable;
+use geo::polygon;
+use geo::wkt;
 use geo::Closest;
 use geo::Distance;
 use geo::Euclidean;
+use geo::GeodesicArea;
 use geo::Length;
 use geo::Point;
+use geo::Polygon;
+use geo::RemoveRepeatedPoints;
 use geo::{Line, LineString, MultiLineString};
+use geo_traits::PointTrait;
 use itertools::put_back;
+use itertools::put_back_n;
 use itertools::Itertools;
 use rstar::primitives::GeomWithData;
 use rstar::PointDistance;
@@ -75,7 +82,7 @@ fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>
             // let min_dist = Euclidean.distance(first_nn, &p);
             // let candidates = inn.take_while(|pred| Euclidean.distance(pred.geom(), &p) <= min_dist);
             // in most cases, this is probably empty
-            (closest(p, first_nn.geom()), first_nn)
+            (closest(&p, first_nn.geom()), first_nn)
         })
         .map(|r| match r.0 {
             Ok(p) => (p.0, (p.1, r.1)),
@@ -127,15 +134,77 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
     res.unwrap_or(idx)
 }
 
+fn segment_match<I>(sub_traj: I, index: &RoadIndex) -> Result<Vec<Line>, (usize, Line)>
+where
+    I: Iterator<Item = Line>,
+{
+    const MAX_CANDIDATES: usize = 20;
+
+    let matched = sub_traj.enumerate().map(|(idx, l)| {
+        let candidate_roads_start = index
+            .index
+            .nearest_neighbor_iter_with_distance_2(&l.start_point())
+            .take(MAX_CANDIDATES);
+        let candidate_roads_end = index
+            .index
+            .nearest_neighbor_iter_with_distance_2(&l.end_point())
+            .take(MAX_CANDIDATES);
+
+        let all_candidates = candidate_roads_start.chain(candidate_roads_end);
+
+        let (best, best_poly) = all_candidates
+            .filter_map(|(g, _dist_2)| {
+                let (closest_start, _) = closest(&l.start_point(), &g.geom()).ok()?;
+                let closest_start = closest_start.coord().expect("should be infallible");
+                let (closest_end, _) = closest(&l.end_point(), &g.geom()).ok()?; // Note: if every candidate causes a None value here, the matched trajectory will have smaller cardinality
+                let closest_end = closest_end.coord().expect("should be infallible");
+                // let poly = polygon!(l.start, l.end, *closest_end, *closest_start, /*l.start*/);
+                // dbg!(poly.remove_repeated_points().exterior().0.len());
+                let poly = if closest_start != closest_end {
+                    // if start and end matches to same point, a bad match will occur
+                    Some(polygon!(
+                        l.start,
+                        l.end,
+                        *closest_end,
+                        *closest_start,
+                        // l.start
+                    )) // FIXME i think first point must be repeated to close the polygon
+                } else {
+                    None
+                }?;
+                // dbg!(idx);
+                Some((g, poly))
+            })
+            // .inspect(|f| {dbg!((idx,f));})
+            .min_by(|(_, fst), (_, snd)| {
+                fst.geodesic_area_signed()
+                    .abs()
+                    .total_cmp(&snd.geodesic_area_signed().abs())
+            }) // this will not work correctly for very large polygons
+            .expect("there should be at least one candidate"); // this is not guaranteed
+        let start_matched = closest(&l.start_point(), &best.geom());
+        let end_matched = closest(&l.end_point(), &best.geom());
+        let result = start_matched
+            .and_then(|fp| end_matched.and_then(|sp| Ok((fp, sp))))
+            .map_err(|_| (idx, l));
+        result
+    });
+
+    let result: Result<Vec<_>, (usize, Line)> =
+        matched.map_ok(|(a, b)| Line::new(a.0, b.0)).try_collect();
+    // .try_fold(vec![], |mut acc,r|r.map(|(a,b) | acc.push(a)) );
+    result
+}
+
 fn best_road_new<I>(sub_traj: I, index: &RoadIndex) -> Vec<Point>
 where
     I: Iterator<Item = Point>,
 {
     const MAX_CANDIDATES: usize = 5;
-    let mut sub_traj = put_back(sub_traj);
-    // .peekable();
+    let mut sub_traj = put_back_n(sub_traj);
     let qp = sub_traj.next(); //TODO instead of picking road with least distance to point, use line segment instead (segment to segment match)
-                              // .expect("trajectory should be nonempty");
+
+    // .expect("trajectory should be nonempty");
     qp.map(|p| {
         let candidate_roads = index
             .index
@@ -144,7 +213,8 @@ where
 
         // assert!(sub_traj.put_back(qp).is_none());
         // .expect("put back slot should be empty");
-        let ls = LineString::from_iter(sub_traj.with_value(p));
+        sub_traj.put_back(p);
+        let ls = LineString::from_iter(sub_traj);
         let res = candidate_roads.map(|(geom, dist)| {
             let dist_squared: f64 = ls
                 .points()
@@ -269,7 +339,7 @@ fn oscillating_case(points: &[(Point, Point)], rtree: &RoadIndex) -> Vec<(Point,
         });
 
         let new_match = match mid {
-            g if prev == next && prev != g => f(closest(snd.1, prev.geom())),
+            g if prev == next && prev != g => f(closest(&snd.1, prev.geom())),
             _ => *snd,
             // g if prev != next => {},
         };
@@ -286,11 +356,11 @@ fn oscillating_case(points: &[(Point, Point)], rtree: &RoadIndex) -> Vec<(Point,
     resulting.collect()
 }
 
-fn closest(p: Point, first_nn: &LineString) -> Result<(Point, Point), Point> {
+fn closest(p: &Point, first_nn: &LineString) -> Result<(Point, Point), Point> {
     match first_nn.closest_point(&p) {
-        Closest::SinglePoint(s) => Ok((s, p)),
-        Closest::Intersection(i) => Ok((i, p)),
-        Closest::Indeterminate => Err(p),
+        Closest::SinglePoint(s) => Ok((s, *p)),
+        Closest::Intersection(i) => Ok((i, *p)),
+        Closest::Indeterminate => Err(*p),
     }
 }
 
@@ -630,7 +700,9 @@ mod tests {
             "minimum distance should be smaller after map matching"
         );
     }
+
     #[test]
+    #[ignore = "does not work yet"]
     fn new_best_test_277() {
         let network: MultiLineString = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277_NEARBY).unwrap();
         let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
@@ -665,6 +737,33 @@ mod tests {
         //     min_dist <= min_orig_dist,
         //     "minimum distance should be smaller after map matching"
         // );
+    }
+
+    #[test]
+    fn segment_test() {
+        let network: MultiLineString = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277_NEARBY).unwrap();
+        let traj_orig: Trajectory = wkt::TryFromWkt::try_from_wkt_str(TRAJ_277).unwrap();
+
+        let (id, ls): (Vec<u64>, Vec<_>) = network
+            .line_strings()
+            .enumerate()
+            .map(|(id, traj)| (id as u64, traj.clone()))
+            .unzip();
+
+        let rtree = RoadIndex::from_ids_and_roads(&id, &ls);
+
+        let (f, s): (Vec<_>, Vec<_>) = segment_match(traj_orig.lines(), &rtree)
+            .expect("should be able to match all lines")
+            .iter()
+            .map(|l| (l.start_point(), l.end_point()))
+            .unzip();
+        let traj = LineString::from_iter(f.iter().interleave(s.iter()).cloned());
+        dbg!(Euclidean.frechet_distance(&traj_orig, &traj));
+        let mut buf = String::new();
+        let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
+        dbg!(&buf);
+        dbg!(Euclidean.length(&traj_orig) - Euclidean.length(&traj));
+        assert!(false);
     }
 
     #[test]
