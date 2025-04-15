@@ -153,34 +153,53 @@ where
         let all_candidates = candidate_roads_start.chain(candidate_roads_end);
 
         let (best, best_poly) = all_candidates
-            .filter_map(|(g, _dist_2)| {
+            // .filter_map(|(g, _dist_2)| {
+            //     let (closest_start, _) = closest(&l.start_point(), &g.geom()).ok()?;
+            //     let closest_start = closest_start.coord().expect("should be infallible");
+            //     let (closest_end, _) = closest(&l.end_point(), &g.geom()).ok()?; // Note: if every candidate causes a None value here, the matched trajectory will have smaller cardinality
+            //     let closest_end = closest_end.coord().expect("should be infallible");
+            //     // let poly = polygon!(l.start, l.end, *closest_end, *closest_start, /*l.start*/);
+            //     // dbg!(poly.remove_repeated_points().exterior().0.len());
+            //     let poly = if closest_start != closest_end {
+            //         // if start and end matches to same point, a bad match will occur
+            //         Some(polygon!(
+            //             l.start,
+            //             l.end,
+            //             *closest_end,
+            //             *closest_start,
+            //             // l.start
+            //         )) // FIXME i think first point must be repeated to close the polygon
+            //     } else {
+            //         Some(polygon!(
+            //             l.start,
+            //             l.end,
+            //             *closest_end,
+            //             *closest_start,
+            //             // l.start
+            //         ))
+            //         // None
+            //     }?;
+            //     // dbg!(idx);
+            //     Some((g, poly))
+            // })
+            .filter_map(|(g, _)| {
                 let (closest_start, _) = closest(&l.start_point(), &g.geom()).ok()?;
-                let closest_start = closest_start.coord().expect("should be infallible");
+                // let closest_start = closest_start.coord().expect("should be infallible");
                 let (closest_end, _) = closest(&l.end_point(), &g.geom()).ok()?; // Note: if every candidate causes a None value here, the matched trajectory will have smaller cardinality
-                let closest_end = closest_end.coord().expect("should be infallible");
-                // let poly = polygon!(l.start, l.end, *closest_end, *closest_start, /*l.start*/);
-                // dbg!(poly.remove_repeated_points().exterior().0.len());
-                let poly = if closest_start != closest_end {
-                    // if start and end matches to same point, a bad match will occur
-                    Some(polygon!(
-                        l.start,
-                        l.end,
-                        *closest_end,
-                        *closest_start,
-                        // l.start
-                    )) // FIXME i think first point must be repeated to close the polygon
-                } else {
-                    None
-                }?;
-                // dbg!(idx);
-                Some((g, poly))
+                                                                                 // let closest_end = closest_end.coord().expect("should be infallible");
+
+                let f_dist = Euclidean.distance(closest_start, l.start_point());
+                let l_dist = Euclidean.distance(closest_end, l.end_point());
+
+                Some((g, f_dist + l_dist))
             })
             // .inspect(|f| {dbg!((idx,f));})
-            .min_by(|(_, fst), (_, snd)| {
-                fst.geodesic_area_signed()
-                    .abs()
-                    .total_cmp(&snd.geodesic_area_signed().abs())
-            }) // this will not work correctly for very large polygons
+            .min_by(|(_,fst),(_,snd)| fst.total_cmp(snd))
+            // .min_by(|(_, fst), (_, snd)| {
+            //     dbg!(fst.geodesic_area_signed())
+            //         .abs()
+            //         .total_cmp(&snd.geodesic_area_signed().abs())
+            // }) // this will not work correctly for very large polygons
             .expect("there should be at least one candidate"); // this is not guaranteed
         let start_matched = closest(&l.start_point(), &best.geom());
         let end_matched = closest(&l.end_point(), &best.geom());
