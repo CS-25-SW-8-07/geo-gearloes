@@ -108,20 +108,15 @@ fn line_similarity(fst: &Line, snd: &Line) -> f64 {
 fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
     const SIMILARITY_THRESHOLD: f64 = 1.0; //? perhaps it should be an input parameter
 
-    // const MIN_OFFSET: usize = 4;
-    // let mut to: usize = idx + MIN_OFFSET;
-    // let a = traj.points().skip(idx).take(MIN_OFFSET).map(|p|)
     let a = traj
         .lines() //Note: this iterator yields 1 less element compared to .points()
         .enumerate()
         .skip(idx)
         .tuple_windows()
         .map(|(sl, el)| (sl.0, line_similarity(&sl.1, &el.1)))
-        .take_while(|(i, e)| *e < 1.0)
+        .take_while(|(i, e)| *e < SIMILARITY_THRESHOLD)
         .map(|(e, _)| e);
-    // dbg!(a.count());
     let res = a.last();
-    // .unwrap_or(idx);
     res.unwrap_or(idx)
 }
 
