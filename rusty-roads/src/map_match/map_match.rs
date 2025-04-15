@@ -7,6 +7,7 @@ use crate::Roads;
 use super::super::Road;
 use super::super::RoadWithNode;
 use geo::closest_point::ClosestPoint;
+use geo::wkt;
 use geo::Closest;
 use geo::Contains;
 use geo::Distance;
@@ -122,12 +123,40 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
     res.unwrap_or(idx)
 }
 
+/// attempts to match an input trajectory to the given road network
+///
+/// # Panics
+///
+/// Panics if the rtree is empty .
+///
+/// # Errors
+///
+/// This function will return an error if .
+///
+/// # Example
+/// ```
+/// use rusty_roads::segment_match;
+/// use rusty_roads::RoadIndex;
+/// use geo::wkt;
+/// use geo::MultiLineString;
+/// use geo_traits::MultiLineStringTrait;
+/// 
+/// let a = 1+1;
+/// let traj = wkt!{LINESTRING(1.0 2.0, 2.0 3.0, 3.0 4.0)};
+/// let road_network: MultiLineString<f64> = wkt!{MULTILINESTRING((0.5 2.0, 2.0 3.0, 3.0 4.0, 4.0 5.0),(50.0 100.0, 100.0 200.0))};
+/// let (ids, lss): (Vec<u64>, Vec<_>) = road_network.line_strings().enumerate().map(|(id, traj)| (id as u64, traj.clone())).unzip();
+/// let rtree = RoadIndex::from_ids_and_roads(&ids, &lss);
+/// let matched = segment_match(traj.lines(),&rtree);
+/// assert_eq!(matched.unwrap().len(), traj.lines().count());
+/// //assert!(matched.is_ok_and(|p| p.len()==traj.0.len()));
+/// ```
 pub fn segment_match<I>(sub_traj: I, index: &RoadIndex) -> Result<Vec<Line>, (usize, Line)>
 where
     I: Iterator<Item = Line>,
 {
     const MAX_CANDIDATES: usize = 20; // completely arbitrary
-    debug_assert!(index.index.size() > 1, "rtree index should be nonempty");
+
+    debug_assert!(index.index.size() >= 1, "rtree index should be nonempty");
 
     let matched = sub_traj.enumerate().map(|(idx, l)| {
         let candidate_roads_start = index
@@ -151,11 +180,11 @@ where
                 let f_dist = Euclidean.distance(closest_start, l.start_point());
                 let l_dist = Euclidean.distance(closest_end, l.end_point());
                 let w = match closest_start == closest_end {
-                    false => {1.0},
-                    true => {2.0}, // also completely arbitrary
+                    false => 1.0,
+                    true => 2.0, // also completely arbitrary
                 };
 
-                Some((g, (f_dist + l_dist)*w))
+                Some((g, (f_dist + l_dist) * w))
             })
             .min_by(|(_, fst), (_, snd)| fst.total_cmp(snd))
             .ok_or((idx, l))?; // unlikely, but can be triggered if all nn's have indeterminate closest point
