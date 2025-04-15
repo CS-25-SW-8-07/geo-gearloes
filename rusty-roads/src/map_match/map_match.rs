@@ -1,5 +1,3 @@
-use std::iter::repeat;
-
 use crate::RoadIndex;
 use crate::Roads;
 
@@ -12,7 +10,6 @@ use geo::Euclidean;
 use geo::Length;
 use geo::Point;
 use geo::{Line, LineString, MultiLineString};
-use itertools::put_back_n;
 use itertools::Itertools;
 use rstar::primitives::GeomWithData;
 
@@ -132,8 +129,6 @@ where
     result
 }
 
-
-
 fn closest(p: &Point, first_nn: &LineString) -> Result<(Point, Point), Point> {
     match first_nn.closest_point(p) {
         Closest::SinglePoint(s) => Ok((s, *p)),
@@ -142,15 +137,12 @@ fn closest(p: &Point, first_nn: &LineString) -> Result<(Point, Point), Point> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::PathBuf;
 
     use geo::line_measures::FrechetDistance;
-    use geo::{coord, wkt, Closest, Coord, Euclidean, Point, Within};
-    use geo_traits::{LineStringTrait, MultiLineStringTrait};
+    use geo::{coord, wkt, Closest, Coord, Euclidean, Point};
+    use geo_traits::MultiLineStringTrait;
     use geo_types::line_string;
 
     use super::*;
