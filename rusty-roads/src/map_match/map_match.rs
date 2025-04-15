@@ -776,13 +776,17 @@ mod tests {
             .iter()
             .map(|l| (l.start_point(), l.end_point()))
             .unzip();
-        let traj = LineString::from_iter(f.iter().interleave(s.iter()).cloned());
+
+        let mut traj = vec![f.first().unwrap()];
+        traj.extend(s.iter());
+        let traj = LineString::from_iter(traj.iter().cloned().cloned());
+        // let traj = LineString::from_iter(f.iter().interleave(s.iter()).cloned());
         dbg!(Euclidean.frechet_distance(&traj_orig, &traj));
         let mut buf = String::new();
         let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
         dbg!(&buf);
         dbg!(Euclidean.length(&traj_orig) - Euclidean.length(&traj));
-        assert!(false);
+        assert_eq!(traj_orig.0.len(),traj.0.len());
     }
 
     #[test]
