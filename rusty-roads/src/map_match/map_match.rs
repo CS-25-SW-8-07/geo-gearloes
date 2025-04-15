@@ -84,7 +84,7 @@ fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>
 }
 
 /// Compares direction of 2 lines
-/// returns a number between 0 and 2 (inclusive) where 0 means their slope is similar and 2 means they are opposite (sqrt(2) meaning a perfect right angle)
+/// returns a number between 0 and 2 (inclusive) where 0 means their direction is identical and 2 means they are opposite (sqrt(2) meaning a perfect right angle)
 fn line_similarity(fst: &Line, snd: &Line) -> f64 {
     let fst = Line::new(
         fst.start / Euclidean.length(fst),
