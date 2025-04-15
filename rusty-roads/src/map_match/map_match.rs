@@ -139,7 +139,7 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
 /// use geo::wkt;
 /// use geo::MultiLineString;
 /// use geo_traits::MultiLineStringTrait;
-/// 
+///
 /// let a = 1+1;
 /// let traj = wkt!{LINESTRING(1.0 2.0, 2.0 3.0, 3.0 4.0)};
 /// let road_network: MultiLineString<f64> = wkt!{MULTILINESTRING((0.5 2.0, 2.0 3.0, 3.0 4.0, 4.0 5.0),(50.0 100.0, 100.0 200.0))};
