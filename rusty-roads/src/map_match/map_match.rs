@@ -8,10 +8,12 @@ use super::super::Road;
 use super::super::RoadWithNode;
 use geo::closest_point::ClosestPoint;
 use geo::Closest;
+use geo::Contains;
 use geo::Distance;
 use geo::Euclidean;
 use geo::Length;
 use geo::Point;
+use geo::Relate;
 use geo::{Line, LineString, MultiLineString};
 use itertools::put_back_n;
 use itertools::Itertools;
@@ -148,15 +150,19 @@ where
 
                 let f_dist = Euclidean.distance(closest_start, l.start_point());
                 let l_dist = Euclidean.distance(closest_end, l.end_point());
+                let w = match closest_start == closest_end {
+                    false => {1.0},
+                    true => {2.0}, // also completely arbitrary
+                };
 
-                Some((g, f_dist + l_dist))
+                Some((g, (f_dist + l_dist)*w))
             })
             .min_by(|(_, fst), (_, snd)| fst.total_cmp(snd))
-            .ok_or( (idx, l))?; // unlikely, but can be triggered if all nn's have indeterminate closest point
-        let start_matched = closest(&l.start_point(), best.geom()).map_err(|_| (idx,l))?;
-        let end_matched = closest(&l.end_point(), best.geom()).map_err(|_| (idx,l))?;
+            .ok_or((idx, l))?; // unlikely, but can be triggered if all nn's have indeterminate closest point
+        let start_matched = closest(&l.start_point(), best.geom()).map_err(|_| (idx, l))?;
+        let end_matched = closest(&l.end_point(), best.geom()).map_err(|_| (idx, l))?;
 
-        Ok((start_matched,end_matched))
+        Ok((start_matched, end_matched))
     });
 
     let result: Result<Vec<_>, (usize, Line)> =
@@ -164,6 +170,7 @@ where
     result
 }
 
+#[deprecated = "`segment_match` is supposed to be used instead"]
 fn best_road_new<I>(sub_traj: I, index: &RoadIndex) -> Vec<Point>
 where
     I: Iterator<Item = Point>,
@@ -707,6 +714,7 @@ mod tests {
         let mut buf = String::new();
         let _ = wkt::to_wkt::write_linestring(&mut buf, &traj).unwrap();
         dbg!(&buf);
+        // assert!(false);
         dbg!(Euclidean.length(&traj_orig) - Euclidean.length(&traj));
         assert_eq!(traj_orig.0.len(), traj.0.len());
     }
