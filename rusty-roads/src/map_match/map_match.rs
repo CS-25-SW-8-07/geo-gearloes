@@ -304,6 +304,7 @@ fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
 }
 
 // attemtps to re-match points if oscillations are detected
+#[deprecated]
 fn oscillating_case(points: &[(Point, Point)], rtree: &RoadIndex) -> Vec<(Point, Point)> {
     debug_assert!(rtree.index.size() > 1);
 
@@ -341,6 +342,8 @@ fn closest(p: &Point, first_nn: &LineString) -> Result<(Point, Point), Point> {
     }
 }
 
+#[deprecated]
+// error handling is hard
 fn f(r: Result<(Point, Point), Point>) -> (Point, Point) {
     match r {
         Ok(p) => p,
