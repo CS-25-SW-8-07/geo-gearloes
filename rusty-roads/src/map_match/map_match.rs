@@ -37,6 +37,7 @@ impl ClosestPoint<f64> for RoadWithNode<'_> {
     }
 }
 
+#[deprecated]
 fn map_match_traj_to_road(traj: &Trajectory, road: impl ClosestPoint<f64>) -> Trajectory {
     let matched = traj
         .points()
@@ -50,6 +51,7 @@ fn map_match_traj_to_road(traj: &Trajectory, road: impl ClosestPoint<f64>) -> Tr
     // todo!()
 }
 /// an implementation that handles some cases listed in [this paper](https://www.sciencedirect.com/science/article/pii/S0968090X00000267)
+#[deprecated]
 fn map_match_index_v2(traj: &Trajectory, index: &RoadIndex) -> Result<Vec<Point>, Point> {
     debug_assert!(
         index.index.iter().all(|p| p.geom().0.len() > 1),
