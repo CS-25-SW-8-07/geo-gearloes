@@ -1,4 +1,3 @@
-use std::iter;
 use std::iter::repeat;
 
 use crate::RoadIndex;
@@ -7,14 +6,11 @@ use crate::Roads;
 use super::super::Road;
 use super::super::RoadWithNode;
 use geo::closest_point::ClosestPoint;
-use geo::wkt;
 use geo::Closest;
-use geo::Contains;
 use geo::Distance;
 use geo::Euclidean;
 use geo::Length;
 use geo::Point;
-use geo::Relate;
 use geo::{Line, LineString, MultiLineString};
 use itertools::put_back_n;
 use itertools::Itertools;
@@ -117,7 +113,7 @@ fn when_to_skip(idx: usize, traj: &Trajectory, _index: &RoadIndex) -> usize {
         .skip(idx)
         .tuple_windows()
         .map(|(sl, el)| (sl.0, line_similarity(&sl.1, &el.1)))
-        .take_while(|(i, e)| *e < SIMILARITY_THRESHOLD)
+        .take_while(|(_i, e)| *e < SIMILARITY_THRESHOLD)
         .map(|(e, _)| e);
     let res = a.last();
     res.unwrap_or(idx)
@@ -216,7 +212,7 @@ where
 
         sub_traj.put_back(p);
         let ls = LineString::from_iter(sub_traj);
-        let res = candidate_roads.map(|(geom, dist)| {
+        let res = candidate_roads.map(|(geom, _dist)| {
             let dist_squared: f64 = ls
                 .points()
                 .take(geom.geom().0.len()) //? not necessarily a good way of handling this
@@ -285,7 +281,7 @@ fn best_road(traj: &Trajectory, index: &RoadIndex) -> Vec<Point> {
         ))
         .take(MAX_CANDIDATES);
 
-    let res = candidate_roads.map(|(geom, dist)| {
+    let res = candidate_roads.map(|(geom, _dist)| {
         let dist_squared: f64 = traj
             .points()
             .take(geom.geom().0.len()) //? not necessarily a good way of handling this
