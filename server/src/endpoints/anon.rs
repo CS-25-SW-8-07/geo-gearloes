@@ -105,7 +105,7 @@ async fn add_unknown_visit(
 
     match atlas::anonymity::box_add_unknownvisits(conn, bbox, anonymity::Probability(probability))
         .await
-   {
+    {
         Ok(_) => (),
         Err(_) => return HttpResponse::InternalServerError().body("Internal server error"),
     };

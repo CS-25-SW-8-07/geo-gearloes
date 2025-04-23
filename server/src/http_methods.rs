@@ -3,7 +3,7 @@ use actix_web::{
     get, web, App, Error, HttpResponse, HttpServer, Responder,
 };
 
-use atlas::{create_pool, box_query};
+use atlas::{box_query, create_pool};
 use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
@@ -91,4 +91,3 @@ async fn testing123(pool: web::Data<PgPool>) -> impl Responder {
         }
     }
 }
-

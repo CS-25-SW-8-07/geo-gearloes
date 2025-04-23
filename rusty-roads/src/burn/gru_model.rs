@@ -7,6 +7,7 @@ use burn::{
     prelude::*,
 };
 
+#[derive(Debug, Clone)]
 pub struct Model<B: Backend> {
     pub output_dim: usize,
     pub gru1: Gru<B>,
@@ -25,4 +26,3 @@ pub struct ModelConfig {
     #[config(default = "0.5")]
     pub dropout: f64,
 }
-

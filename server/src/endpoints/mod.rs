@@ -15,4 +15,3 @@ pub fn get_bbox(query: &std::collections::HashMap<String, String>) -> ((f64, f64
 
     ((lon1, lat1), (lon2, lat2))
 }
-

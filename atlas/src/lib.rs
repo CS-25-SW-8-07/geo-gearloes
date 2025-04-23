@@ -1,6 +1,6 @@
 pub mod anonymity;
-pub mod model;
 mod error;
+pub mod model;
 
 use derive_more::From;
 use error::DbError;
