@@ -8,14 +8,14 @@ use burn::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Model<B: Backend> {
+pub struct Model {
     pub output_dim: usize,
-    pub gru1: Gru<B>,
-    pub gru2: Gru<B>,
+    pub gru1: Gru<burn::backend::Wgpu<f32, i32>>,
+    pub gru2: Gru<burn::backend::Wgpu<f32, i32>>,
     pub pool: AdaptiveAvgPool2d,
     pub dropout: Dropout,
-    pub linear1: Linear<B>,
-    pub linear2: Linear<B>,
+    pub linear1: Linear<burn::backend::Wgpu<f32, i32>>,
+    pub linear2: Linear<burn::backend::Wgpu<f32, i32>>,
     pub activation: Relu,
 }
 

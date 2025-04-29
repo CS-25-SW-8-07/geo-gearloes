@@ -5,6 +5,7 @@ use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
 use std::env;
+use std::sync::{mpsc::channel, Arc, Mutex};
 
 mod endpoints;
 mod http_methods;
@@ -18,7 +19,7 @@ async fn main() -> std::io::Result<()> {
     let db_name = env::var("DB_NAME").expect("DB_NAME must be set");
     let db_port = env::var("DB_PORT").expect("DB_PORT must be set");
 
-    //  construct the DATABASE_URL
+    // construct the DATABASE_URL
     let database_url = format!(
         "postgres://{}:{}@{}:{}/{}",
         db_username, db_password, db_address, db_port, db_name
@@ -32,9 +33,10 @@ async fn main() -> std::io::Result<()> {
 
     // Start the HTTP server asynchronously with Actix
     HttpServer::new(move || {
-        let mut app = App::new().app_data(web::Data::new(pool.to_owned())); // Share the pool across all routes
+        let mut app = App::new().app_data(web::Data::new(pool.to_owned()));
         app = http_methods::services(app);
         app = endpoints::anon::services(app);
+        // app = endpoints::model::services(app);
 
         app
     })
@@ -42,3 +44,4 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await
 }
+
