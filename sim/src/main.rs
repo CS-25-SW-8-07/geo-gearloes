@@ -19,6 +19,7 @@ fn main() {
             ..Default::default()
         },
         Box::new(|cc| {
+            ureq::get("http://xyz.server")
             let r = ();
             cc.egui_ctx.data_mut(|data| {});
             Ok(Box::new(App))
