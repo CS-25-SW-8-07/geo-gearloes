@@ -1,6 +1,6 @@
 use actix_web::{
     dev::{ServiceFactory, ServiceRequest},
-    get, web, App, Error, HttpResponse, HttpServer, Responder,
+    get, post, web, App, Error, HttpResponse, HttpServer, Responder,
 };
 
 use atlas::{create_pool, box_query};
@@ -8,6 +8,8 @@ use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
 use std::env;
+use std::fs::File;
+use std::io::Write;
 
 pub fn services<T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>>(
     app: App<T>,
@@ -92,3 +94,22 @@ async fn testing123(pool: web::Data<PgPool>) -> impl Responder {
     }
 }
 
+#[post("/uploadModel")]
+async fn upload_model_file(
+    body: web::Bytes,
+    db: web::Data<PgPool>,
+) -> impl Responder {
+
+    let result = sqlx::query("INSERT INTO model (model) VALUES ($1)") //Evt. ændre column navn til model_data
+        .bind(body.as_ref())
+        .execute(db.get_ref())
+        .await;
+
+    match result {
+        Ok(_) => HttpResponse::Ok().body("Model uploaded to the database"),
+        Err(e) => {
+            eprintln!("Database error: {:?}", e);
+            HttpResponse::InternalServerError().body("Failed to store model in the database")
+        }
+    }
+}
