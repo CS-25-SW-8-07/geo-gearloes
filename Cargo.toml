@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = [ "atlas", "comms", "comms-macros","rusty-roads", "tests", "location_obfuscation"]
+members = [ "atlas", "comms", "comms-macros","rusty-roads", "tests", "location_obfuscation", "sim"]
 
 [workspace.lints.clippy]
 # all = { level = "deny", priority = 1 }
