@@ -2,15 +2,38 @@
 pub mod widgets;
 pub mod worker;
 
+// AALBORG
+const NORTH_EAST: Coord = Coord {
+    y: 57.133836,
+    x: 10.147676,
+};
+
+const SOUTH_WEST: Coord = Coord {
+    y: 56.927713,
+    x: 9.776412,
+};
+/*: DENMARK does crash :(
+const NORTH_EAST: Coord = Coord {
+    y: 58.039624,
+    x: 17.413168,
+};
+
+const SOUTH_WEST: Coord = Coord {
+    y: 54.494441,
+    x: 7.536414,
+};
+*/
+
 #[derive(Default, Debug, Clone, Copy)]
 struct StepCount(usize);
 
+use comms::Parquet;
 use eframe::{
     NativeOptions,
-    egui::{self, Button, Id, Slider, Visuals},
+    egui::{self, Id, Visuals},
 };
-use widgets::{SpawnSimMenu, StepCounter, StepperButton};
-use worker::{Worker, WorkerState, Workers};
+use geo::Coord;
+use widgets::{Map, SpawnSimMenu, StepCounter, StepperButton};
 
 fn main() {
     eframe::run_native(
@@ -19,9 +42,26 @@ fn main() {
             ..Default::default()
         },
         Box::new(|cc| {
-            ureq::get("http://xyz.server")
-            let r = ();
-            cc.egui_ctx.data_mut(|data| {});
+            let reader = ureq::get(format!(
+                "http://localhost:8080/get_roads_in_bbox.parquet?lat1={}&lon1={}&lat2={}&lon2={}",
+                NORTH_EAST.y, NORTH_EAST.x, SOUTH_WEST.y, SOUTH_WEST.x
+            ))
+            .call()
+            .unwrap()
+            .body_mut()
+            .read_to_vec()
+            .unwrap();
+
+            let bytes = comms::Bytes::from_owner(reader);
+
+            let roads = rusty_roads::Roads::from_parquet(bytes).unwrap();
+            let index = rusty_roads::RoadIndex::from_ids_and_roads(&roads.id, &roads.geom);
+
+            cc.egui_ctx.data_mut(|data| {
+                data.insert_temp(Id::NULL, roads);
+                data.insert_temp(Id::NULL, index);
+            });
+
             Ok(Box::new(App))
         }),
     )
@@ -44,10 +84,6 @@ impl eframe::App for App {
         });
 
         ctx.style_mut(|s| s.visuals = Visuals::light());
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.set_width_range(ui.available_width()..=ui.available_width());
-            ui.set_height_range(ui.available_height()..=ui.available_height());
-            let painter = ui.painter();
-        });
+        egui::CentralPanel::default().show(ctx, |ui| ui.add(Map));
     }
 }

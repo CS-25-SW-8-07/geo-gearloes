@@ -4,3 +4,5 @@ pub mod stepper;
 pub use stepper::*;
 pub mod spawn_sim_menu;
 pub use spawn_sim_menu::*;
+pub mod map;
+pub use map::*;
