@@ -1,10 +1,11 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use atlas::box_query;
+use atlas::{box_query, create_pool};
 use comms::Parquet;
 use rusty_roads::Roads;
 use sqlx::{PgPool, Row};
 use std::env;
 
+mod endpoints;
 mod http_methods;
 
 #[actix_web::main]
@@ -23,18 +24,22 @@ async fn main() -> std::io::Result<()> {
     );
 
     // Use the bind function to get a lazy database pool
-    let pool = atlas::create_pool(&database_url, None).await.unwrap(); // This is using the `connect_lazy`
+    let pool = atlas::create_pool(&database_url, Some(10))
+        .await
+        .expect("Could not connect to Postgres DB");
     println!("Successfully connected to Postgres");
 
     // Start the HTTP server asynchronously with Actix
     println!("Starting server on 127.0.0.1:8080");
     HttpServer::new(move || {
-        App::new()
-            .app_data(web::Data::new(pool.clone())) // Share the pool across all routes
-            .service(http_methods::testing123)
-            .service(http_methods::get_roads_in_bbox)
+        let mut app = App::new().app_data(web::Data::new(pool.to_owned())); // Share the pool across all routes
+        app = http_methods::services(app);
+        app = endpoints::anon::services(app);
+
+        app
     })
-    .bind(("127.0.0.1", 8080))? // Bind to localhost:8080
+    //.bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .run()
     .await
 }

@@ -108,13 +108,14 @@ SELECT id, NOW(), $5 FROM roadnetwork;");
 }
 
 #[allow(dead_code)]
-pub async fn add_trajectory(
+pub async fn add_trajectories(
     mut conn: PoolConnection<Postgres>,
-    traj: Vec<u8>,
+    trajs: Vec<Vec<u8>>,
 ) -> Result<(), DbError> {
     let query = String::from(
-        "WITH trajectory AS (INSERT INTO trajectories (geom)
-VALUES (ST_GeomFromWKB($1, 4326))
+        "WITH input_data as (select traj from UNNEST($1) as traj),
+trajectory AS (INSERT INTO trajectories (geom)
+SELECT ST_GeomFromWKB(traj, 4326) FROM input_data
 RETURNING id, geom),
 intersected_roads AS (
 	SELECT roads.id
@@ -127,7 +128,7 @@ FROM trajectory as t, intersected_roads as ir;",
     );
 
     sqlx::query(&query)
-        .bind(traj)
+        .bind(trajs)
         .execute(&mut *conn)
         .await
         .map_err(DbError::Sqlx)?;

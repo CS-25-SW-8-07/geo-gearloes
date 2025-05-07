@@ -1,5 +1,5 @@
 [package]
-name = "flotnavn"
+name = "server"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,6 +11,7 @@ sqlx = { version = "0.8.3", features = ["postgres", "runtime-tokio-native-tls"] 
 tokio = "1.44.1"
 rusty-roads = { path = "../rusty-roads" }
 comms = { version = "0.1.0", path = "../comms" }
+wkb = "0.8.0"
 
 [lints]
 workspace = true
