@@ -9,4 +9,13 @@ name = "pysim"
 crate-type = ["cdylib"]
 
 [dependencies]
+bytes = "1.10.1"
+chrono = "0.4.41"
+comms = { version = "0.1.0", path = "../comms" }
+eframe = { version = "0.31.1", features = ["wgpu"] }
+geo = "0.30.0"
+proj = "0.30.0"
 pyo3 = "0.24.0"
+pyo3-bytes = "0.2.0"
+rstar = "0.12.2"
+rusty-roads = { version = "0.1.0", path = "../rusty-roads" }

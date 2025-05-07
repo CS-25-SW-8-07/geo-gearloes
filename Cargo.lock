@@ -1474,7 +1474,9 @@ checksum = "c469d952047f47f91b68d1cba3f10d63c11d73e4636f24f08daf0278abf01c4d"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -5403,6 +5405,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pyo3-bytes"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "781c3168801c4ae94f1e642e6d41b7a1db67b62ab1bf6138e0771f76d29529b3"
+dependencies = [
+ "bytes",
+ "pyo3",
+]
+
+[[package]]
 name = "pyo3-ffi"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5441,7 +5453,16 @@ dependencies = [
 name = "pysim"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "chrono",
+ "comms",
+ "eframe",
+ "geo",
+ "proj",
  "pyo3",
+ "pyo3-bytes",
+ "rstar",
+ "rusty-roads",
 ]
 
 [[package]]

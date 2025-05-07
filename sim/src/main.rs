@@ -1,4 +1,5 @@
 //pub mod map;
+pub mod args;
 pub mod widgets;
 pub mod worker;
 
