@@ -135,3 +135,16 @@ FROM trajectory as t, intersected_roads as ir;",
 
     Ok(())
 }
+
+#[allow(dead_code)]
+pub async fn reset_traj(mut conn: PoolConnection<Postgres>) -> Result<(), DbError> {
+    let query =
+        String::from("TRUNCATE knownvisittable, unknownvisittable, trajectories RESTART IDENTITY");
+
+    sqlx::query(&query)
+        .execute(&mut *conn)
+        .await
+        .map_err(DbError::Sqlx)?;
+
+    Ok(())
+}

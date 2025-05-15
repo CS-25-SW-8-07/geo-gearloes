@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use actix_web::{
+    delete,
     dev::{ServiceFactory, ServiceRequest},
     get, post, web, App, Error, HttpResponse, Responder,
 };
@@ -106,6 +107,21 @@ async fn add_unknown_visit(
     match atlas::anonymity::box_add_unknownvisits(conn, bbox, anonymity::Probability(probability))
         .await
     {
+        Ok(_) => (),
+        Err(_) => return HttpResponse::InternalServerError().body("Internal server error"),
+    };
+
+    HttpResponse::Ok().body("")
+}
+
+#[delete("/k-and-traj")]
+async fn delete_k_and_traj(pool: web::Data<PgPool>) -> impl Responder {
+    let conn = match pool.acquire().await {
+        Ok(c) => c,
+        Err(_) => return HttpResponse::InternalServerError().body(""),
+    };
+
+    match atlas::anonymity::reset_traj(conn).await {
         Ok(_) => (),
         Err(_) => return HttpResponse::InternalServerError().body("Internal server error"),
     };
