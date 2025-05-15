@@ -1,4 +1,8 @@
-use std::{convert::identity, sync::Arc};
+use std::{
+    convert::identity,
+    iter::repeat,
+    sync::{Arc, RwLock},
+};
 
 use eframe::{
     egui::{self, Color32, Id, Painter, Pos2, Shape, Stroke, Widget},
@@ -6,7 +10,7 @@ use eframe::{
 };
 use geo::{Coord, LineString, Point, Translate};
 use proj::Proj;
-use rstar::{primitives::GeomWithData, AABB};
+use rstar::{AABB, primitives::GeomWithData};
 use rusty_roads::RoadIndex;
 
 use crate::sim::{BBox, Cars, Projection, Time};
@@ -100,15 +104,18 @@ pub struct Map;
 
 impl Widget for Map {
     fn ui(self, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
-        let index = ui.data(|r| r.get_temp::<Arc<RoadIndex>>(Id::NULL).unwrap());
+        let BBox(min, max) = ui.data(|r| r.get_temp(Id::NULL).unwrap());
+        let roads_tmp = ui
+            .data(|r| r.get_temp::<Option<Arc<RoadIndex>>>(Id::NULL))
+            .flatten();
+        let roads = roads_tmp
+            .as_ref()
+            .map(|index| index.box_query(&AABB::from_corners(min, max)));
+
         let cars = ui.data(|r| r.get_temp::<Cars>(Id::NULL).unwrap());
         let Time(time) = ui.data(|r| r.get_temp::<Time>(Id::NULL).unwrap());
 
         let projection: Projection = ui.data(|r| r.get_temp(Id::NULL).unwrap());
-
-        let BBox(min, max) = ui.data(|r| r.get_temp(Id::NULL).unwrap());
-
-        let roads = index.box_query(&AABB::from_corners(min, max));
 
         let vw = ui.available_width() as f64;
         let vh = ui.available_height() as f64;
@@ -125,8 +132,6 @@ impl Widget for Map {
             Box::new(|v: Point| (max - v) / h * vh)
         };
 
-        dbg!(c, w, h, a, vw, vh, max, transform(max), min, transform(min));
-
         let painter = ui.painter();
         let draw = painter.draw_transformed(
             |Pos2 { x, y }| Pos2 {
@@ -138,34 +143,54 @@ impl Widget for Map {
 
         let transform = &transform;
 
-        roads.map(GeomWithData::geom).for_each(|geom| {
-            draw.linestring(geom, PathStroke::new(1.0, Color32::LIGHT_GRAY), transform);
-        });
+        roads
+            .into_iter()
+            .flatten()
+            .map(GeomWithData::geom)
+            .for_each(|geom| {
+                draw.linestring(geom, PathStroke::new(1.0, Color32::LIGHT_GRAY), transform);
+            });
 
-        cars.iter()
-            .map(|car| {
-                let pts = car
-                    .trajectory
-                    .timestamps
-                    .windows(2)
-                    .zip(car.trajectory.points.windows(2))
-                    .filter_map(|(t, p)| {
-                        if t[0] < time {
-                            Some(p[0])
-                        } else if t[0] >= time {
-                            None
-                        } else {
-                            let rate = (time.as_secs_f64() - t[0].as_secs_f64())
-                                / (t[1].as_secs_f64() - t[0].as_secs_f64());
-                            let translation = (p[1] - p[0]) * rate;
-                            Some(p[0].translate(translation.x(), translation.y()))
-                        }
-                    })
-                    .map(|p| projection.project(p, true).unwrap());
-                LineString::from_iter(pts)
+        cars.get()
+            .iter()
+            .filter(|car| car.should_draw(time))
+            .flat_map(|car| {
+                [
+                    (
+                        LineString::from_iter(
+                            car.record
+                                .points
+                                .iter()
+                                .map(|p| projection.project(p.0, true).unwrap()),
+                        ),
+                        car.color,
+                    ),
+                    (
+                        LineString::from_iter(
+                            car.predicted
+                                .points
+                                .iter()
+                                .map(|p| projection.project(p.0, true).unwrap()),
+                        ),
+                        Color32::DARK_RED,
+                    ),
+                ]
             })
-            .for_each(|ls| {
-                draw.linestring(&ls, PathStroke::new(0.5, Color32::DARK_BLUE), transform);
+            .for_each(|(ls, color)| {
+                // Draw Trajectories
+                let Some(Coord { x, y }) = ls.0.last().cloned() else {
+                    return;
+                };
+                draw.linestring(&ls, PathStroke::new(0.5, color), transform);
+                draw.circle(
+                    Pos2 {
+                        x: x as f32,
+                        y: y as f32,
+                    },
+                    4.0,
+                    color,
+                    Stroke::NONE,
+                );
             });
 
         ui.response()

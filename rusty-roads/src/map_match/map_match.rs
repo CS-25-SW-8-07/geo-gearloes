@@ -1,3 +1,4 @@
+use crate::Id;
 use crate::RoadIndex;
 use crate::Roads;
 
@@ -85,7 +86,7 @@ pub fn segment_match<I>(sub_traj: I, index: &RoadIndex) -> Result<Vec<Line>, (us
 where
     I: Iterator<Item = Line>,
 {
-    const MAX_CANDIDATES: usize = 20/2; // max k in index knn query // completely arbitrary
+    const MAX_CANDIDATES: usize = 20 / 2; // max k in index knn query // completely arbitrary
 
     debug_assert!(index.index.size() >= 1, "rtree index should be nonempty");
 
@@ -128,6 +129,51 @@ where
     let result: Result<Vec<_>, (usize, Line)> =
         matched.map_ok(|(a, b)| Line::new(a.0, b.0)).try_collect();
     result
+}
+
+pub fn segment_road<I>(sub_traj: I, index: &RoadIndex) -> Result<Vec<Id>, (usize, Line)>
+where
+    I: Iterator<Item = Line>,
+{
+    const MAX_CANDIDATES: usize = 20 / 2; // max k in index knn query // completely arbitrary
+
+    debug_assert!(index.index.size() >= 1, "rtree index should be nonempty");
+
+    let matched = sub_traj.enumerate().map(|(idx, l)| {
+        let candidate_roads_start = index
+            .index
+            .nearest_neighbor_iter_with_distance_2(&l.start_point())
+            .take(MAX_CANDIDATES);
+        let candidate_roads_end = index
+            .index
+            .nearest_neighbor_iter_with_distance_2(&l.end_point())
+            .take(MAX_CANDIDATES);
+
+        // gather candidate roads from start and end roads
+        let all_candidates = candidate_roads_start.chain(candidate_roads_end);
+
+        // find the road with with smallest distance to a line segment
+        let (best, _dist) = all_candidates
+            .filter_map(|(g, _)| {
+                let (closest_start, _) = closest(&l.start_point(), g.geom()).ok()?;
+                let (closest_end, _) = closest(&l.end_point(), g.geom()).ok()?; // Note: if every candidate causes a None value here, the matched trajectory will have smaller cardinality
+
+                let f_dist = Geodesic.distance(closest_start, l.start_point());
+                let l_dist = Geodesic.distance(closest_end, l.end_point());
+                let w = match closest_start == closest_end {
+                    false => 1.0,
+                    true => 2.0, // also completely arbitrary
+                };
+
+                Some((g, (f_dist + l_dist) * w))
+            })
+            .min_by(|(_, fst), (_, snd)| fst.total_cmp(snd))
+            .ok_or((idx, l))?; // unlikely, but can be triggered if all nn's have indeterminate closest point
+
+        Ok(best.data)
+    });
+
+    matched.try_collect()
 }
 
 fn closest(p: &Point, first_nn: &LineString) -> Result<(Point, Point), Point> {
@@ -260,7 +306,12 @@ mod tests {
         };
 
         let line_sim = line_similarity(&LINE, &OTHER_LINE);
-        assert!((line_sim- f64::sqrt(2.0)).abs() < 0.001,"\tLeft = {}\n\tRight = {}",line_sim,f64::sqrt(2.0));
+        assert!(
+            (line_sim - f64::sqrt(2.0)).abs() < 0.001,
+            "\tLeft = {}\n\tRight = {}",
+            line_sim,
+            f64::sqrt(2.0)
+        );
     }
 
     #[test]

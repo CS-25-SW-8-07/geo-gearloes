@@ -8,6 +8,8 @@ pub struct Anonymities {
     pub current_k: Vec<f64>,
 }
 pub type Meter = f64;
+
+#[derive(Debug, Clone)]
 pub struct AnonymityConf {
     pub min_k: u32,
     pub min_k_percentile: f64,
