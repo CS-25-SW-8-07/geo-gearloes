@@ -10,11 +10,18 @@ use eframe::{
     egui::{self, Id, Visuals},
 };
 use geo::{Coord, Point, Simplify};
+use numpy::ndarray::parallel::prelude::IntoParallelRefMutIterator;
 use proj::Proj;
 use pyo3::{Bound, Python};
 use rusty_roads::{RoadIndex, Roads};
 
-use crate::{car::Car, config::SimConfig, widgets::map::Map};
+use crate::{
+    car::{Car, Server},
+    config::SimConfig,
+    widgets::map::Map,
+};
+
+use rayon::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct NPredict(pub usize);
@@ -59,60 +66,79 @@ impl Deref for Projection {
 impl Sim {
     pub fn run(self) -> eframe::Result<()> {
         let Self(config) = self;
-        let (roads, index, cars, step_delta, projection, bbox, server_url, predict, predict_n) =
-            Python::with_gil(|py| {
-                let config = config.borrow(py);
-                let projection = Projection(Arc::new(
-                    Proj::new_known_crs(
-                        config.projection_from.as_str(),
-                        config.projection_to.as_str(),
-                        None,
-                    )
-                    .unwrap(),
-                ));
-
-                let cars = SwapChain::new(config.cars.clone());
-
-                let bbox = BBox(
-                    projection.project(config.bbox_min, true).unwrap(),
-                    projection.project(config.bbox_max, true).unwrap(),
-                );
-                let (roads, index) = config.map.clone().map_or((None, None), |parquet| {
-                    let mut roads = Roads::from_parquet(parquet).unwrap();
-                    let epsilon = if roads.geom.len() > 1_000_000 {
-                        0.3
-                    } else {
-                        0.0
-                    };
-
-                    roads.geom = roads
-                        .geom
-                        .iter()
-                        .map(|l| {
-                            geo::LineString::from_iter(
-                                l.points().map(|p| projection.project(p, true).unwrap()),
-                            )
-                            .simplify(&epsilon)
-                        })
-                        .collect();
-
-                    let index = Arc::new(RoadIndex::from_ids_and_roads(&roads.id, &roads.geom));
-                    let roads = Arc::new(roads);
-
-                    (Some(roads), Some(index))
-                });
-
-                let predict = config.predict.clone_ref(py);
-                let predict_n = config.predict_n.clone();
-
-                let step_delta = config.step_delta.clone();
-                let server_url = config.server_url.clone();
-
-                (
-                    roads, index, cars, step_delta, projection, bbox, server_url, predict,
-                    predict_n,
+        let (
+            roads,
+            index,
+            cars,
+            step_delta,
+            projection,
+            bbox,
+            server_url,
+            predict,
+            predict_n,
+            steps,
+        ) = Python::with_gil(|py| {
+            let config = config.borrow(py);
+            let projection = Projection(Arc::new(
+                Proj::new_known_crs(
+                    config.projection_from.as_str(),
+                    config.projection_to.as_str(),
+                    None,
                 )
+                .unwrap(),
+            ));
+
+            let cars = SwapChain::new(config.cars.clone());
+
+            let bbox = BBox(
+                projection.project(config.bbox_min, true).unwrap(),
+                projection.project(config.bbox_max, true).unwrap(),
+            );
+            let (roads, index) = config.map.clone().map_or((None, None), |parquet| {
+                let mut roads = Roads::from_parquet(parquet).unwrap();
+                let epsilon = if roads.geom.len() > 1_000_000 {
+                    0.3
+                } else {
+                    0.0
+                };
+
+                roads.geom = roads
+                    .geom
+                    .iter()
+                    .map(|l| {
+                        geo::LineString::from_iter(
+                            l.points().map(|p| projection.project(p, true).unwrap()),
+                        )
+                        .simplify(&epsilon)
+                    })
+                    .collect();
+
+                let index = Arc::new(RoadIndex::from_ids_and_roads(&roads.id, &roads.geom));
+                let roads = Arc::new(roads);
+
+                (Some(roads), Some(index))
             });
+
+            let predict = config.predict.clone_ref(py);
+            let predict_n = config.predict_n.clone();
+
+            let step_delta = config.step_delta.clone();
+            let server_url = config.server_url.clone();
+
+            let steps = config.steps;
+
+            (
+                roads, index, cars, step_delta, projection, bbox, server_url, predict, predict_n,
+                steps,
+            )
+        });
+
+        let uri = Uri(Arc::new(server_url));
+
+        Server {
+            uri: uri.0.as_str(),
+        }
+        .reset();
 
         eframe::run_native(
             "Simultation",
@@ -120,6 +146,37 @@ impl Sim {
                 ..Default::default()
             },
             Box::new(|cc| {
+                let ctx = cc.egui_ctx.clone();
+                let move_cars = cars.clone();
+                std::thread::spawn(move || {
+                    for _ in 0..steps {
+                        let StepCounter(counter) =
+                            ctx.data(|d| d.get_temp::<StepCounter>(Id::NULL)).unwrap();
+                        let Time(time) = ctx.data(|d| d.get_temp::<Time>(Id::NULL)).unwrap();
+                        let Delta(delta) = ctx.data(|d| d.get_temp::<Delta>(Id::NULL)).unwrap();
+                        ctx.data_mut(|w| w.insert_temp(Id::NULL, StepCounter(counter + 1)));
+                        ctx.data_mut(|w| w.insert_temp(Id::NULL, Time(time + delta)));
+                        let ctx = ctx.clone();
+                        let (p1, p2, p3, p4, p5, p6) = ctx.data(|r| {
+                            (
+                                r.get_temp(Id::NULL).unwrap(),
+                                r.get_temp(Id::NULL).unwrap(),
+                                r.get_temp(Id::NULL).unwrap(),
+                                r.get_temp(Id::NULL).unwrap(),
+                                r.get_temp(Id::NULL).unwrap(),
+                                r.get_temp(Id::NULL).unwrap(),
+                            )
+                        });
+                        move_cars.work(move |cars| {
+                            cars.par_iter_mut().enumerate().for_each(|(idx, car)| {
+                                dbg!("STEP START");
+                                car.step(idx, &p1, &p2, &p3, &p4, &p5, &p6);
+                                dbg!("STEP END");
+                            });
+                        });
+                        ctx.request_repaint();
+                    }
+                });
                 cc.egui_ctx.data_mut(|data| {
                     data.insert_temp(Id::NULL, roads);
                     data.insert_temp(Id::NULL, index);
@@ -129,7 +186,7 @@ impl Sim {
                     data.insert_temp(Id::NULL, StepCounter(0));
                     data.insert_temp(Id::NULL, projection);
                     data.insert_temp(Id::NULL, bbox);
-                    data.insert_temp(Id::NULL, Uri(Arc::new(server_url)));
+                    data.insert_temp(Id::NULL, uri);
                     data.insert_temp(Id::NULL, Arc::new(predict));
                     data.insert_temp(Id::NULL, NPredict(predict_n));
                 });
@@ -165,14 +222,13 @@ impl<T: Send + Sync + Clone + 'static> SwapChain<T> {
     pub fn work(&self, f: impl Fn(&mut T) + Send + 'static) {
         let work = self.work.clone();
         let active = self.active.clone();
-        std::thread::spawn(move || {
-            dbg!("WORKING !!");
-            let mut w = work.write().unwrap();
-            f(w.deref_mut());
-            let mut a = active.write().unwrap();
-            *a.deref_mut() = w.deref().clone();
-            dbg!("STOPED WORKING !!");
-        });
+
+        dbg!("WORKING !!");
+        let mut w = work.write().unwrap();
+        f(w.deref_mut());
+        let mut a = active.write().unwrap();
+        *a.deref_mut() = w.deref().clone();
+        dbg!("STOPED WORKING !!");
     }
 }
 
@@ -185,27 +241,9 @@ impl App for SimApp {
             let Delta(delta) = ui.data(|d| d.get_temp::<Delta>(Id::NULL)).unwrap();
             ui.horizontal(|ui| {
                 if ui.button("Step").clicked() {
-                    ui.data_mut(|w| w.insert_temp(Id::NULL, StepCounter(counter + 1)));
-                    ui.data_mut(|w| w.insert_temp(Id::NULL, Time(time + delta)));
                     let cars = ui.data(|w| w.get_temp::<Cars>(Id::NULL));
                     if let Some(cars) = cars {
-                        let (p1, p2, p3, p4, p5, p6) = ui.data(|r| {
-                            (
-                                r.get_temp(Id::NULL).unwrap(),
-                                r.get_temp(Id::NULL).unwrap(),
-                                r.get_temp(Id::NULL).unwrap(),
-                                r.get_temp(Id::NULL).unwrap(),
-                                r.get_temp(Id::NULL).unwrap(),
-                                r.get_temp(Id::NULL).unwrap(),
-                            )
-                        });
-                        cars.work(move |cars| {
-                            cars.iter_mut().for_each(|car| {
-                                dbg!("STEP START");
-                                car.step(&p1, &p2, &p3, &p4, &p5, &p6);
-                                dbg!("STEP END");
-                            });
-                        })
+                        let ctx = ui.ctx().clone();
                     }
                 }
                 ui.label(format!("Step: {counter}"));

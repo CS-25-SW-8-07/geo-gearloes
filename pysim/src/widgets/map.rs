@@ -156,6 +156,17 @@ impl Widget for Map {
             .filter(|car| car.should_draw(time))
             .flat_map(|car| {
                 [
+                    /*
+                    (
+                        LineString::from_iter(
+                            car.drive
+                                .points
+                                .iter()
+                                .map(|p| projection.project(p.0, true).unwrap()),
+                        ),
+                        Color32::DARK_GREEN,
+                    ),
+                    */
                     (
                         LineString::from_iter(
                             car.record
@@ -178,19 +189,7 @@ impl Widget for Map {
             })
             .for_each(|(ls, color)| {
                 // Draw Trajectories
-                let Some(Coord { x, y }) = ls.0.last().cloned() else {
-                    return;
-                };
                 draw.linestring(&ls, PathStroke::new(0.5, color), transform);
-                draw.circle(
-                    Pos2 {
-                        x: x as f32,
-                        y: y as f32,
-                    },
-                    4.0,
-                    color,
-                    Stroke::NONE,
-                );
             });
 
         ui.response()

@@ -113,7 +113,7 @@ where
                 let l_dist = Geodesic.distance(closest_end, l.end_point());
                 let w = match closest_start == closest_end {
                     false => 1.0,
-                    true => 2.0, // also completely arbitrary
+                    true => 1.0 + f64::EPSILON, // also completely arbitrary
                 };
 
                 Some((g, (f_dist + l_dist) * w))
@@ -162,7 +162,7 @@ where
                 let l_dist = Geodesic.distance(closest_end, l.end_point());
                 let w = match closest_start == closest_end {
                     false => 1.0,
-                    true => 2.0, // also completely arbitrary
+                    true => 1.0 + f64::EPSILON, // also completely arbitrary
                 };
 
                 Some((g, (f_dist + l_dist) * w))

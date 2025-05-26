@@ -4,14 +4,17 @@ use comms::Parquet;
 use eframe::egui::Color32;
 use geo::{Line, LineString, Point, Translate};
 use numpy::{PyArrayDyn, PyArrayMethods, ToPyArray, ndarray::Array};
-use pyo3::{Py, Python, types::PyFunction};
+use pyo3::{
+    Py, Python,
+    types::{PyFunction, PyInt},
+};
 use rstar::AABB;
 use rusty_roads::{Anonymities, AnonymityConf, RoadIndex, Trajectories};
 use std::time::Duration;
 
 use crate::{
     config::Trajectory,
-    sim::{BBox, Delta, NPredict, Time, Uri},
+    sim::{BBox, NPredict, StepCounter, Time, Uri},
 };
 
 const AI_LEN: usize = 11;
@@ -36,34 +39,34 @@ impl Car {
 
     pub fn step(
         &mut self,
+        idx: usize,
         Uri(uri): &Uri,
         ai: &Arc<Py<PyFunction>>,
         NPredict(n): &NPredict,
         index: &Option<Arc<RoadIndex>>,
         Time(time): &Time,
-        Delta(delta): &Delta,
+        StepCounter(sc): &StepCounter,
     ) {
-        if Self::is_time(self.drive_delay, self.record_delay, *time, *delta) {
+        if !self.should_draw(*time) {
+            return;
+        }
+
+        if Self::is_time(self.record_delay, *time, *sc) {
             self.record(*time)
         }
 
-        if Self::is_time(self.drive_delay, self.send_delay, *time, *delta)
-            && self.record.timestamps.len() > AI_LEN
-        {
-            self.predict(ai.clone(), *n);
-            self.send(
-                uri.as_str(),
-                index.as_ref().map_or(&Default::default(), AsRef::as_ref),
-            )
+        let Some(index) = index.as_deref() else {
+            return;
+        };
+
+        if self.record.timestamps.len() > AI_LEN {
+            self.predict(idx, ai.clone(), *n, index);
+            self.send(uri.as_str(), index);
         }
     }
 
-    fn is_time(drive_delay: Duration, delay: Duration, time: Duration, delta: Duration) -> bool {
-        let Some(projected_time) = (time > drive_delay).then_some(time - drive_delay) else {
-            return false;
-        };
-
-        projected_time.as_secs_f64() / delay.as_secs_f64() < delta.as_secs_f64()
+    fn is_time(delay: Duration, time: Duration, sc: usize) -> bool {
+        (time.as_secs_f64() / sc as f64) < delay.as_secs_f64()
     }
 
     fn record(&mut self, time: Duration) {
@@ -88,8 +91,29 @@ impl Car {
         }
     }
 
-    fn predict(&mut self, ai: Arc<Py<PyFunction>>, n_predict: usize) {
-        self.predicted = ML { ai }.gen_trajectory(self.record.clone(), n_predict);
+    fn predict(
+        &mut self,
+        idx: usize,
+        ai: Arc<Py<PyFunction>>,
+        n_predict: usize,
+        index: &RoadIndex,
+    ) {
+        let predicted = ML { ai }.gen_trajectory(idx, self.record.clone(), n_predict, index);
+        let points = predicted
+            .points
+            .into_iter()
+            .rev()
+            .take(n_predict)
+            .rev()
+            .collect();
+        let timestamps = predicted
+            .timestamps
+            .into_iter()
+            .rev()
+            .take(n_predict)
+            .rev()
+            .collect();
+        self.predicted = Trajectory { points, timestamps }
     }
 
     fn send(&self, uri: &str, index: &RoadIndex) {
@@ -123,7 +147,13 @@ pub struct ML {
     ai: Arc<Py<PyFunction>>,
 }
 impl ML {
-    pub fn gen_trajectory(&self, mut trajectory: Trajectory, n: usize) -> Trajectory {
+    pub fn gen_trajectory(
+        &self,
+        idx: usize,
+        mut trajectory: Trajectory,
+        n: usize,
+        index: &RoadIndex,
+    ) -> Trajectory {
         if n == 0 {
             return trajectory;
         }
@@ -150,14 +180,16 @@ impl ML {
 
         let data = Array::from_shape_vec((1, AI_LEN, 3), data).unwrap();
 
-        dbg!("ACCURING GIL");
         let data = Python::with_gil(|py| {
-            dbg!("ACCURED GIL");
             let data = self
                 .ai
                 .call1(
                     py,
-                    pyo3::types::PyTuple::new(py, vec![data.to_pyarray(py)].iter()).unwrap(),
+                    pyo3::types::PyTuple::new(
+                        py,
+                        vec![PyInt::new(py, idx).as_any(), data.to_pyarray(py).as_any()].iter(),
+                    )
+                    .unwrap(),
                 )
                 .unwrap();
 
@@ -172,10 +204,18 @@ impl ML {
         let time = trajectory.timestamps.last().unwrap().clone() + Duration::from_secs_f32(data[0]);
         let point = Point::new(data[2] as f64, data[1] as f64);
 
-        trajectory.points.push(point);
-        trajectory.timestamps.push(time);
+        trajectory.push(point, time);
 
-        self.gen_trajectory(trajectory, n - 1)
+        let segments = rusty_roads::map_match::segment_match(
+            trajectory.points.windows(2).map(|l| Line::new(l[0], l[1])),
+            index,
+        )
+        .unwrap();
+
+        trajectory.points = segments.iter().map(|x| x.start_point()).collect();
+        trajectory.points.push(segments.last().unwrap().end_point());
+
+        self.gen_trajectory(idx, trajectory, n - 1, index)
     }
 }
 
@@ -209,14 +249,17 @@ impl Traj {
 }
 
 pub struct Server<'a> {
-    uri: &'a str,
+    pub uri: &'a str,
 }
 impl<'a> Server<'a> {
     pub fn request_k(&self, bbox: &BBox) -> Anonymities {
         let Self { uri } = self;
-        let mut req = ureq::get(format!("{uri}/get_ks_in_bbox?{}", bbox.query_parameters()))
-            .call()
-            .unwrap();
+        let mut req = ureq::get(format!(
+            "{uri}/get_ks_in_bbox.parquet?{}",
+            bbox.query_parameters()
+        ))
+        .call()
+        .unwrap();
 
         Anonymities::from_parquet(bytes::Bytes::from_owner(
             req.body_mut().read_to_vec().unwrap(),
@@ -241,5 +284,10 @@ impl<'a> Server<'a> {
         ))
         .send("")
         .unwrap();
+    }
+
+    pub fn reset(&self) {
+        let Self { uri } = self;
+        ureq::delete(format!("{uri}/k-and-traj")).call().unwrap();
     }
 }

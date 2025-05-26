@@ -74,9 +74,9 @@ impl PyCar {
         trajectory, color = "#0033ee".into(), record_delay = Duration::from_secs(60), 
         send_delay = Duration::from_secs(120), drive_delay = Duration::from_secs(0), 
         annon_conf = PyAnonymityConf {
-            min_k: 10,
-            min_area_size: 100.0,
-            min_k_percentile: 50.0
+            min_k: 100,
+            min_area_size: 100000000.0,
+            min_k_percentile: 95.0
         }
     ))]
     pub fn new(
@@ -195,6 +195,7 @@ pub struct SimConfig {
     pub bbox_max: Point,
     pub map: Option<Bytes>,
     pub cars: Vec<crate::car::Car>,
+    pub steps: usize,
 }
 
 #[pymethods]
@@ -203,7 +204,7 @@ impl SimConfig {
     #[pyo3(signature = (
         bbox_p1, bbox_p2, map, cars, predict, predict_n, server_url = "localhost:8080".into(),
         projection_from = "EPSG:4326".into(), projection_to = "EPSG:4326".into(),
-        step_delta = Duration::from_secs(60)
+        step_delta = Duration::from_secs(60), steps = 1000,
     ))]
     fn new(
         bbox_p1: Bound<'_, PyPoint>,
@@ -216,6 +217,7 @@ impl SimConfig {
         projection_from: String,
         projection_to: String,
         step_delta: Duration,
+        steps: usize
     ) -> SimConfig {
         let cars = cars
             .iter()
@@ -241,6 +243,7 @@ impl SimConfig {
             projection_to,
             step_delta,
             server_url,
+            steps
         }
     }
 }

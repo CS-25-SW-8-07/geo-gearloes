@@ -18,6 +18,7 @@ pub fn services<T: ServiceFactory<ServiceRequest, Config = (), Error = Error, In
     app.service(get_ks_in_bbox)
         .service(post_trajectory)
         .service(add_unknown_visit)
+        .service(delete_k_and_traj)
 }
 
 #[get("/get_ks_in_bbox.parquet")]
@@ -123,7 +124,10 @@ async fn delete_k_and_traj(pool: web::Data<PgPool>) -> impl Responder {
 
     match atlas::anonymity::reset_traj(conn).await {
         Ok(_) => (),
-        Err(_) => return HttpResponse::InternalServerError().body("Internal server error"),
+        Err(e) => {
+            dbg!(e);
+            return HttpResponse::InternalServerError().body("Internal server error");
+        }
     };
 
     HttpResponse::Ok().body("")
